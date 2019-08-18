@@ -11,7 +11,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.Surface;
 import android.view.View;
-
+//import android.
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -78,7 +78,7 @@ public class MainActivity extends AppCompatActivity {
 
             int count = 0;
 
-            Uri videoUri = Uri.parse("android.resource://" + getPackageName() + "/" + R.raw.frame_051_0);
+            Uri videoUri = Uri.parse("android.resource://" + getPackageName() + "/" + R.raw.frame_053_0);
 
             MediaExtractor tempExtractor = new MediaExtractor();
 
@@ -140,7 +140,7 @@ public class MainActivity extends AppCompatActivity {
 
 
             MediaExtractor extractor = new MediaExtractor();
-            Uri videoUri = Uri.parse("android.resource://" + getPackageName() + "/" + R.raw.frame_051_0);
+            Uri videoUri = Uri.parse("android.resource://" + getPackageName() + "/" + R.raw.frame_055_0);
             try {
                 extractor.setDataSource(getApplicationContext(), videoUri, null);
             } catch (IOException e) {
@@ -167,12 +167,12 @@ public class MainActivity extends AppCompatActivity {
 
                 mediaFormat = MediaFormat.createVideoFormat(MIME_TYPE, 256, 180);
 
-                byte[] bytes = new byte[]{(byte) 0x11, (byte)0x90};
+                byte[] bytes = new byte[]{(byte)0x00, (byte)0x00, (byte)0x00, (byte)0x01};
                 ByteBuffer bb = ByteBuffer.wrap(bytes);
                 mediaFormat.setByteBuffer("csd-0", bb);
 
                 //mediaFormat.setByteBuffer("csd-0",java.nio.HeapByteBuffer[pos=0 lim=2157 cap=2157]);
-                mediaFormat.setByteBuffer("csd-0",java.nio.HeapByteBuffer );
+                //mediaFormat.setByteBuffer("csd-0",java.nio.HeapByteBuffer[pos=0,lim=2157,cap=2157];
                 //mediaFormat.setInteger("display-width",format.getInteger("display-width"));
                 //mediaFormat.setInteger("display-height",format.getInteger("display-height"));
 
@@ -193,7 +193,7 @@ public class MainActivity extends AppCompatActivity {
 
                         }*/
 
-                decoder.configure(mediaFormat, outputSurface.getSurface(), null, 0);
+                decoder.configure(format, outputSurface.getSurface(), null, 0);
 
                 decoder.start();
 
