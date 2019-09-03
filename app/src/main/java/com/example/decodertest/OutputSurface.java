@@ -12,6 +12,7 @@ import android.util.Log;
 import android.view.Surface;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 
 import javax.microedition.khronos.egl.EGL10;
 import javax.microedition.khronos.egl.EGLConfig;
@@ -49,6 +50,7 @@ class OutputSurface implements SurfaceTexture.OnFrameAvailableListener {
     private EGLSurface mEGLSurface;
 
     private SurfaceTexture mSurfaceTexture;
+    private ArrayList<SurfaceTexture> mSurfaceTextureBuffer;
     private Surface mSurface;
 
     private Object mFrameSyncObject = new Object();     // guards mFrameAvailable
@@ -69,6 +71,8 @@ class OutputSurface implements SurfaceTexture.OnFrameAvailableListener {
         if (width <= 0 || height <= 0) {
             throw new IllegalArgumentException();
         }
+
+
 
         eglSetup(width, height);
         makeCurrent();
@@ -103,6 +107,8 @@ class OutputSurface implements SurfaceTexture.OnFrameAvailableListener {
         // at the Java level, so if we don't either then the object can get GCed, which
         // causes the native finalizer to run.
         if (VERBOSE_OUTPUT_SURFACE) Log.d(TAG, "textureID=" + mTextureRender.getTextureId());
+
+        /**This is where I need to modify*/
         mSurfaceTexture = new SurfaceTexture(mTextureRender.getTextureId());
         /*mHandlerThread = new HandlerThread("callback-thread");
         mHandlerThread.start();
@@ -180,8 +186,7 @@ class OutputSurface implements SurfaceTexture.OnFrameAvailableListener {
 
         /**Creating a off - screen pixel buffer surface*/
         mEGLSurface = mEGL.eglCreatePbufferSurface(mEGLDisplay, configs[0], surfaceAttribs);
-
-
+        //mEGLSurface = mEGL.eglCreateWindowSurface(mEGLDisplay,configs[0],mSurface,surfaceAttribs);
         checkEglError("eglCreatePbufferSurface");
         if (mEGLSurface == null) {
             throw new RuntimeException("surface was null");
@@ -296,6 +301,7 @@ class OutputSurface implements SurfaceTexture.OnFrameAvailableListener {
     public void drawImage() {
         Log.d(TAG,"C");
         mTextureRender.drawFrame(mSurfaceTexture);
+
     }
 
     @Override
