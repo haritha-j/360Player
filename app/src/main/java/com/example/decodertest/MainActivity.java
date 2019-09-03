@@ -34,6 +34,7 @@ import android.opengl.Matrix;
 import android.os.Bundle;
 import android.os.Environment;
 //import android.test.AndroidTestCase;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.Surface;
 import android.widget.ImageView;
@@ -70,28 +71,110 @@ public class MainActivity extends AppCompatActivity {
 
     // where to find files (note: requires WRITE_EXTERNAL_STORAGE permission)
     private static final File FILES_DIR = Environment.getExternalStorageDirectory();
-    private static final String INPUT_FILE = "source.mp4";
+    private static final String INPUT_FILE1 = "source.mp4";
+    private static final String INPUT_FILE2 = "source2.mp4";
     private static final int MAX_FRAMES = 30;       // stop extracting after this many
-    private ExtractMpegFramesWrapper extractor;
+    int mWidth;
+    int mHeight;
+
+    //arrays to store BMPs
+    Bitmap[] frames1;
+    Bitmap[] frames2;
+    int frame1Count;
+    int frame2Count;
+
+    //private ExtractMpegFramesWrapper extractor;
     /** test entry point */
+    /*
     public void testExtractMpegFrames() throws Throwable {
         ExtractMpegFramesWrapper.runTest(this);
     }
-
+    */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        frames1 = new Bitmap[MAX_FRAMES];
+        frames2 = new Bitmap[MAX_FRAMES];
+        frame1Count = 0;
+        frame2Count = 0;
         //extractor = new ExtractMpegFramesWrapper(this);
 
         try {
-            ExtractMpegFramesWrapper.runTest(this);
+            ExtractMpegFramesWrapper.runTest(this, INPUT_FILE1, 1);
+            ExtractMpegFramesWrapper.runTest(this, INPUT_FILE2, 2);
+            BMPConsumerWrapper.runTest(this);
+
             //Log.d(TAG, "running extractor");
         } catch (Throwable throwable) {
             throwable.printStackTrace();
         }
     }
 
+
+    private void consumeBMPs() throws  IOException {
+
+        for (int frameCount = 0; frameCount < MAX_FRAMES; frameCount++) {
+            Log.d(TAG," framecount = "+ frameCount + " frame1count "+frame1Count+ " frame2count "+frame2Count);
+            while((frame1Count<=frameCount) || (frame2Count<=frameCount)){
+                Log.d(TAG," awaiting new frame to consume");
+                SystemClock.sleep(20);
+            }
+            Log.d(TAG, "Frame available on BMP arrays");
+            BufferedOutputStream bos = null;
+            File outputFile = new File(FILES_DIR,
+                    String.format("pics/frame-%02d.png", frameCount));
+            String filename = outputFile.toString();
+            try {
+                bos = new BufferedOutputStream(new FileOutputStream(filename));
+                //Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
+                //mPixelBuf.rewind();
+                //bmp.copyPixelsFromBuffer(mPixelBuf);
+
+                //create new blank bitmap
+                //Bitmap blank = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
+                Bitmap merged = mergeBitmap(frames1[frameCount], frames2[frameCount]);
+                merged.compress(Bitmap.CompressFormat.PNG, 90, bos);
+                merged.recycle();
+            } finally {
+                if (bos != null) bos.close();
+            }
+            if (VERBOSE) {
+                Log.d(TAG, "Saved " + mWidth + "x" + mHeight + " frame as '" + filename + "'");
+            }
+
+        }
+    }
+
+    //haritha - consumer thread to save bitmaps produced by the decoder threads
+    private static class BMPConsumerWrapper implements Runnable{
+        private MainActivity mTest;
+        private Throwable mThrowable;
+
+        private BMPConsumerWrapper(MainActivity test){
+            mTest = test;
+        }
+
+        @Override
+        public void run() {
+            try {
+                mTest.consumeBMPs();
+            }
+            catch(Throwable th){
+                mThrowable = th;
+                Log.d(TAG, "consumer error", th);
+            }
+        }
+
+        public  static void runTest(MainActivity obj) throws Throwable{
+            BMPConsumerWrapper wrapper = new BMPConsumerWrapper(obj);
+            Thread th = new Thread(wrapper, "consumer test");
+            th.start();
+            if (wrapper.mThrowable != null) {
+                throw wrapper.mThrowable;
+            }
+        }
+    }
 
     /**
      * Wraps extractMpegFrames().  This is necessary because SurfaceTexture will try to use
@@ -103,15 +186,20 @@ public class MainActivity extends AppCompatActivity {
     private static class ExtractMpegFramesWrapper implements Runnable{
         private Throwable mThrowable;
         private MainActivity mTest;
+        private String mFileName;
+        private int mFrameID;
 
-        private ExtractMpegFramesWrapper(MainActivity test) {
+        private ExtractMpegFramesWrapper(MainActivity test, String fileName, int frameID) {
             mTest = test;
+            mFileName = fileName;
+            mFrameID = frameID;
+
         }
 
         @Override
         public void run() {
             try {
-                mTest.extractMpegFrames();
+                mTest.extractMpegFrames(mFileName, mFrameID);
             } catch (Throwable th) {
                 Log.d(TAG, "error running extractor", th);
                 mThrowable = th;
@@ -119,8 +207,8 @@ public class MainActivity extends AppCompatActivity {
         }
 
         /** Entry point. */
-        public static void runTest(MainActivity obj) throws Throwable {
-            ExtractMpegFramesWrapper wrapper = new ExtractMpegFramesWrapper(obj);
+        public static void runTest(MainActivity obj, String mFileName, int frameID) throws Throwable {
+            ExtractMpegFramesWrapper wrapper = new ExtractMpegFramesWrapper(obj, mFileName, frameID);
             Thread th = new Thread(wrapper, "codec test");
             th.start();
             //th.join();
@@ -138,7 +226,7 @@ public class MainActivity extends AppCompatActivity {
      * it by adjusting the GL viewport to get letterboxing or pillarboxing, but generally if
      * you're extracting frames you don't want black bars.
      */
-    private void extractMpegFrames() throws IOException {
+    private void extractMpegFrames(String inputFileUrl, int frameID) throws IOException {
         MediaCodec decoder = null;
         CodecOutputSurface outputSurface = null;
         MediaExtractor extractor = null;
@@ -146,7 +234,7 @@ public class MainActivity extends AppCompatActivity {
         int saveHeight = 192;
 
         try {
-            File inputFile = new File(FILES_DIR, INPUT_FILE);   // must be an absolute path
+            File inputFile = new File(FILES_DIR, inputFileUrl);   // must be an absolute path
             // The MediaExtractor error messages aren't very useful.  Check to see if the input
             // file exists so we can throw a better one if it's not there
 
@@ -181,7 +269,7 @@ public class MainActivity extends AppCompatActivity {
 
 
 
-            doExtract(extractor, trackIndex, decoder, outputSurface);
+            doExtract(extractor, trackIndex, decoder, outputSurface, frameID);
         } finally {
             // release everything we grabbed
             if (outputSurface != null) {
@@ -225,8 +313,8 @@ public class MainActivity extends AppCompatActivity {
     /**
      * Work loop.
      */
-    static void doExtract(MediaExtractor extractor, int trackIndex, MediaCodec decoder,
-                          CodecOutputSurface outputSurface) throws IOException {
+    private void doExtract(MediaExtractor extractor, int trackIndex, MediaCodec decoder,
+                          CodecOutputSurface outputSurface, int frameID) throws IOException {
         final int TIMEOUT_USEC = 2000;
         ByteBuffer[] decoderInputBuffers = decoder.getInputBuffers();
         MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
@@ -314,10 +402,18 @@ public class MainActivity extends AppCompatActivity {
                         outputSurface.drawImage(true);
 
                         if (decodeCount < MAX_FRAMES) {
-                            File outputFile = new File(FILES_DIR,
-                                    String.format("pics/frame-%02d.png", decodeCount));
+
                             long startWhen = System.nanoTime();
-                            outputSurface.saveFrame(outputFile.toString());
+                            Bitmap bmp = outputSurface.saveFrame();
+                            if (frameID == 1){
+                                frames1[decodeCount] = bmp;
+                                frame1Count++;
+                            }else{
+                                frames2[decodeCount] = bmp;
+                                frame2Count++;
+                            }
+                            Log.d(TAG, "Added frame to buffer, framecount1 "+frame1Count+ " framecount2 "+frame2Count);
+
                             frameSaveTime += System.nanoTime() - startWhen;
                         }
                         decodeCount++;
@@ -327,8 +423,8 @@ public class MainActivity extends AppCompatActivity {
         }
 
         int numSaved = (MAX_FRAMES < decodeCount) ? MAX_FRAMES : decodeCount;
-        Log.d(TAG, "Saving " + numSaved + " frames took " +
-                (frameSaveTime / numSaved / 1000) + " us per frame");
+        //Log.d(TAG, "Saving " + numSaved + " frames took " +
+        //        (frameSaveTime / numSaved / 1000) + " us per frame");
     }
 
 
@@ -343,7 +439,7 @@ public class MainActivity extends AppCompatActivity {
      * By default, the Surface will be using a BufferQueue in asynchronous mode, so we
      * can potentially drop frames.
      */
-    private static class CodecOutputSurface
+    private class CodecOutputSurface
             implements SurfaceTexture.OnFrameAvailableListener {
         private MainActivity.STextureRender mTextureRender;
         private SurfaceTexture mSurfaceTexture;
@@ -352,8 +448,6 @@ public class MainActivity extends AppCompatActivity {
         private EGLDisplay mEGLDisplay = EGL14.EGL_NO_DISPLAY;
         private EGLContext mEGLContext = EGL14.EGL_NO_CONTEXT;
         private EGLSurface mEGLSurface = EGL14.EGL_NO_SURFACE;
-        int mWidth;
-        int mHeight;
 
         private Object mFrameSyncObject = new Object();     // guards mFrameAvailable
         private boolean mFrameAvailable;
@@ -563,7 +657,7 @@ public class MainActivity extends AppCompatActivity {
         /**
          * Saves the current frame to disk as a PNG image.
          */
-        public void saveFrame(String filename) throws IOException {
+        public Bitmap saveFrame() throws IOException {
             // glReadPixels gives us a ByteBuffer filled with what is essentially big-endian RGBA
             // data (i.e. a byte of red, followed by a byte of green...).  To use the Bitmap
             // constructor that takes an int[] array with pixel data, we need an int[] filled
@@ -606,43 +700,14 @@ public class MainActivity extends AppCompatActivity {
             //System.arraycopy(pixelBytes2,0,combinedArray,0, pixelBytes2.length);
             //ByteBuffer finalBuff = ByteBuffer.wrap(combinedArray);
 
-
-            BufferedOutputStream bos = null;
-            try {
-                bos = new BufferedOutputStream(new FileOutputStream(filename));
-                Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
-                mPixelBuf.rewind();
-                bmp.copyPixelsFromBuffer(mPixelBuf);
-
-                //create new blank bitmap
-                Bitmap blank = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
-                Bitmap merged = mergeBitmap(bmp, blank);
-                merged.compress(Bitmap.CompressFormat.PNG, 90, bos);
-                blank.recycle();
-                merged.recycle();
-                bmp.recycle();
-            } finally {
-                if (bos != null) bos.close();
-            }
-            if (VERBOSE) {
-                Log.d(TAG, "Saved " + mWidth + "x" + mHeight + " frame as '" + filename + "'");
-            }
+            Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
+            mPixelBuf.rewind();
+            bmp.copyPixelsFromBuffer(mPixelBuf);
+            //bmp.recycle();
+            return bmp;
         }
 
-        //haritha - combine multiple bitmap video frames
-        public Bitmap mergeBitmap(Bitmap fr, Bitmap sc)
-        {
-            Bitmap comboBitmap;
-            int width, height;
-            width = fr.getWidth() + sc.getWidth();
-            height = fr.getHeight();
-            comboBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-            Canvas comboImage = new Canvas(comboBitmap);
-            comboImage.drawBitmap(fr, 0f, 0f, null);
-            comboImage.drawBitmap(sc, fr.getWidth(), 0f , null);
-            return comboBitmap;
 
-        }
         /**
          * Checks for EGL errors.
          */
@@ -872,4 +937,42 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
+
+    //haritha - combine multiple bitmap video frames
+    public Bitmap mergeBitmap(Bitmap fr, Bitmap sc)
+    {
+        Bitmap comboBitmap;
+        int width, height;
+        width = fr.getWidth() + sc.getWidth();
+        height = fr.getHeight();
+        comboBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        Canvas comboImage = new Canvas(comboBitmap);
+        comboImage.drawBitmap(fr, 0f, 0f, null);
+        comboImage.drawBitmap(sc, fr.getWidth(), 0f , null);
+        return comboBitmap;
+
+    }
+
+    //code to combine 2 bitmaps and save them
+    /*BufferedOutputStream bos = null;
+            try {
+                bos = new BufferedOutputStream(new FileOutputStream(filename));
+                //Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
+                //mPixelBuf.rewind();
+                //bmp.copyPixelsFromBuffer(mPixelBuf);
+
+                //create new blank bitmap
+                Bitmap blank = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
+                Bitmap merged = mergeBitmap(bmp, blank);
+                merged.compress(Bitmap.CompressFormat.PNG, 90, bos);
+                blank.recycle();
+                merged.recycle();
+                bmp.recycle();
+            } finally {
+                if (bos != null) bos.close();
+            }
+            if (VERBOSE) {
+                Log.d(TAG, "Saved " + mWidth + "x" + mHeight + " frame as '" + filename + "'");
+            }
+            */
 }
