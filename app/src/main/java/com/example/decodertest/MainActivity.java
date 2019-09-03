@@ -71,20 +71,23 @@ public class MainActivity extends AppCompatActivity {
 
     // where to find files (note: requires WRITE_EXTERNAL_STORAGE permission)
     private static final File FILES_DIR = Environment.getExternalStorageDirectory();
-    private static final String INPUT_FILE1 = "source.mp4";
-    private static final String INPUT_FILE2 = "source2.mp4";
+    private static final String INPUT_FILE = "source";
+    //private static final String INPUT_FILE = "source2.mp4";
+    private static final int TILE_COUNT = 4;
+
     private static final int MAX_FRAMES = 30;       // stop extracting after this many
     int mWidth;
     int mHeight;
 
     //arrays to store BMPs
-    Bitmap[] frames1;
-    Bitmap[] frames2;
-    int frame1Count;
-    int frame2Count;
+    Bitmap[][] frames;
+    int[] frameCounts;
 
     //private ExtractMpegFramesWrapper extractor;
-    /** test entry point */
+
+    /**
+     * test entry point
+     */
     /*
     public void testExtractMpegFrames() throws Throwable {
         ExtractMpegFramesWrapper.runTest(this);
@@ -94,15 +97,16 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        frames1 = new Bitmap[MAX_FRAMES];
-        frames2 = new Bitmap[MAX_FRAMES];
-        frame1Count = 0;
-        frame2Count = 0;
+
+        frames = new Bitmap[TILE_COUNT][MAX_FRAMES];
+        frameCounts = new int[TILE_COUNT];
+
         //extractor = new ExtractMpegFramesWrapper(this);
 
         try {
-            ExtractMpegFramesWrapper.runTest(this, INPUT_FILE1, 1);
-            ExtractMpegFramesWrapper.runTest(this, INPUT_FILE2, 2);
+            for (int tile = 0; tile < TILE_COUNT; tile++) {
+                ExtractMpegFramesWrapper.runTest(this, INPUT_FILE + tile + ".mp4", tile);
+            }
             BMPConsumerWrapper.runTest(this);
 
             //Log.d(TAG, "running extractor");
@@ -112,14 +116,21 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    private void consumeBMPs() throws  IOException {
+    private void consumeBMPs() throws IOException {
 
         for (int frameCount = 0; frameCount < MAX_FRAMES; frameCount++) {
-            Log.d(TAG," framecount = "+ frameCount + " frame1count "+frame1Count+ " frame2count "+frame2Count);
-            while((frame1Count<=frameCount) || (frame2Count<=frameCount)){
-                Log.d(TAG," awaiting new frame to consume");
-                SystemClock.sleep(20);
+            Log.d(TAG, " framecount = " + frameCount + " framecounts " + frameCounts[0] + "  " + frameCounts[1] + "  " + frameCounts[2] + "  " + frameCounts[3]);
+
+            //haritha - wait for all the tiles to be ready
+            for (int tile = 0; tile<TILE_COUNT; tile++){
+                while (frameCounts[tile] <=frameCount){
+                    Log.d(TAG, " awaiting new frame to consume");
+                    SystemClock.sleep(20);
+                }
             }
+            //while ((frameCounts <= frameCount) || (frame2Count <= frameCount)) {
+            //    SystemClock.sleep(20);
+            //}
             Log.d(TAG, "Frame available on BMP arrays");
             BufferedOutputStream bos = null;
             File outputFile = new File(FILES_DIR,
@@ -133,7 +144,7 @@ public class MainActivity extends AppCompatActivity {
 
                 //create new blank bitmap
                 //Bitmap blank = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
-                Bitmap merged = mergeBitmap(frames1[frameCount], frames2[frameCount]);
+                Bitmap merged = mergeBitmap(frames[0][frameCount],frames[1][frameCount],frames[2][frameCount],frames[3][frameCount]);
                 merged.compress(Bitmap.CompressFormat.PNG, 90, bos);
                 merged.recycle();
             } finally {
@@ -147,11 +158,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     //haritha - consumer thread to save bitmaps produced by the decoder threads
-    private static class BMPConsumerWrapper implements Runnable{
+    private static class BMPConsumerWrapper implements Runnable {
         private MainActivity mTest;
         private Throwable mThrowable;
 
-        private BMPConsumerWrapper(MainActivity test){
+        private BMPConsumerWrapper(MainActivity test) {
             mTest = test;
         }
 
@@ -159,14 +170,13 @@ public class MainActivity extends AppCompatActivity {
         public void run() {
             try {
                 mTest.consumeBMPs();
-            }
-            catch(Throwable th){
+            } catch (Throwable th) {
                 mThrowable = th;
                 Log.d(TAG, "consumer error", th);
             }
         }
 
-        public  static void runTest(MainActivity obj) throws Throwable{
+        public static void runTest(MainActivity obj) throws Throwable {
             BMPConsumerWrapper wrapper = new BMPConsumerWrapper(obj);
             Thread th = new Thread(wrapper, "consumer test");
             th.start();
@@ -180,10 +190,10 @@ public class MainActivity extends AppCompatActivity {
      * Wraps extractMpegFrames().  This is necessary because SurfaceTexture will try to use
      * the looper in the current thread if one exists, and the CTS tests create one on the
      * test thread.
-     *
+     * <p>
      * The wrapper propagates exceptions thrown by the worker thread back to the caller.
      */
-    private static class ExtractMpegFramesWrapper implements Runnable{
+    private static class ExtractMpegFramesWrapper implements Runnable {
         private Throwable mThrowable;
         private MainActivity mTest;
         private String mFileName;
@@ -206,7 +216,9 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        /** Entry point. */
+        /**
+         * Entry point.
+         */
         public static void runTest(MainActivity obj, String mFileName, int frameID) throws Throwable {
             ExtractMpegFramesWrapper wrapper = new ExtractMpegFramesWrapper(obj, mFileName, frameID);
             Thread th = new Thread(wrapper, "codec test");
@@ -268,7 +280,6 @@ public class MainActivity extends AppCompatActivity {
             decoder.start();
 
 
-
             doExtract(extractor, trackIndex, decoder, outputSurface, frameID);
         } finally {
             // release everything we grabbed
@@ -314,7 +325,7 @@ public class MainActivity extends AppCompatActivity {
      * Work loop.
      */
     private void doExtract(MediaExtractor extractor, int trackIndex, MediaCodec decoder,
-                          CodecOutputSurface outputSurface, int frameID) throws IOException {
+                           CodecOutputSurface outputSurface, int frameID) throws IOException {
         final int TIMEOUT_USEC = 2000;
         ByteBuffer[] decoderInputBuffers = decoder.getInputBuffers();
         MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
@@ -405,15 +416,9 @@ public class MainActivity extends AppCompatActivity {
 
                             long startWhen = System.nanoTime();
                             Bitmap bmp = outputSurface.saveFrame();
-                            if (frameID == 1){
-                                frames1[decodeCount] = bmp;
-                                frame1Count++;
-                            }else{
-                                frames2[decodeCount] = bmp;
-                                frame2Count++;
-                            }
-                            Log.d(TAG, "Added frame to buffer, framecount1 "+frame1Count+ " framecount2 "+frame2Count);
-
+                            frames[frameID][decodeCount] = bmp;
+                            frameCounts[frameID]++;
+                            //Log.d(TAG, "Added frame to buffer, framecount1 " + frame1Count + " framecount2 " + frame2Count);
                             frameSaveTime += System.nanoTime() - startWhen;
                         }
                         decodeCount++;
@@ -453,7 +458,7 @@ public class MainActivity extends AppCompatActivity {
         private boolean mFrameAvailable;
 
         private ByteBuffer mPixelBuf;// used by saveFrame()
-        private ByteBuffer buff2;
+        //private ByteBuffer buff2;
 
         /**
          * Creates a CodecOutputSurface backed by a pbuffer with the specified dimensions.  The
@@ -499,8 +504,8 @@ public class MainActivity extends AppCompatActivity {
 
             mPixelBuf = ByteBuffer.allocateDirect(mWidth * mHeight * 4);
             mPixelBuf.order(ByteOrder.LITTLE_ENDIAN);
-            buff2 = ByteBuffer.allocateDirect(mWidth*mHeight*4);
-            buff2.order(ByteOrder.LITTLE_ENDIAN);
+            //buff2 = ByteBuffer.allocateDirect(mWidth * mHeight * 4);
+            //buff2.order(ByteOrder.LITTLE_ENDIAN);
         }
 
         /**
@@ -732,8 +737,8 @@ public class MainActivity extends AppCompatActivity {
                 // X, Y, Z, U, V
                 -1.0f, -1.0f, 0, 0.f, 0.f,
                 1.0f, -1.0f, 0, 1.f, 0.f,
-                -1.0f,  1.0f, 0, 0.f, 1.f,
-                1.0f,  1.0f, 0, 1.f, 1.f,
+                -1.0f, 1.0f, 0, 0.f, 1.f,
+                1.0f, 1.0f, 0, 1.f, 1.f,
         };
 
         private FloatBuffer mTriangleVertices;
@@ -939,40 +944,19 @@ public class MainActivity extends AppCompatActivity {
     }
 
     //haritha - combine multiple bitmap video frames
-    public Bitmap mergeBitmap(Bitmap fr, Bitmap sc)
-    {
+    public Bitmap mergeBitmap(Bitmap t1, Bitmap t2, Bitmap t3, Bitmap t4) {
         Bitmap comboBitmap;
         int width, height;
-        width = fr.getWidth() + sc.getWidth();
-        height = fr.getHeight();
+        width = t1.getWidth() + t2.getWidth();
+        height = t1.getHeight() + t3.getHeight();
         comboBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         Canvas comboImage = new Canvas(comboBitmap);
-        comboImage.drawBitmap(fr, 0f, 0f, null);
-        comboImage.drawBitmap(sc, fr.getWidth(), 0f , null);
+        comboImage.drawBitmap(t1, 0f, 0f, null);
+        comboImage.drawBitmap(t2, t1.getWidth(), 0f, null);
+        comboImage.drawBitmap(t3, 0f, t1.getHeight(), null);
+        comboImage.drawBitmap(t4, t3.getWidth(), t2.getHeight(), null);
         return comboBitmap;
-
     }
-
     //code to combine 2 bitmaps and save them
-    /*BufferedOutputStream bos = null;
-            try {
-                bos = new BufferedOutputStream(new FileOutputStream(filename));
-                //Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
-                //mPixelBuf.rewind();
-                //bmp.copyPixelsFromBuffer(mPixelBuf);
 
-                //create new blank bitmap
-                Bitmap blank = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
-                Bitmap merged = mergeBitmap(bmp, blank);
-                merged.compress(Bitmap.CompressFormat.PNG, 90, bos);
-                blank.recycle();
-                merged.recycle();
-                bmp.recycle();
-            } finally {
-                if (bos != null) bos.close();
-            }
-            if (VERBOSE) {
-                Log.d(TAG, "Saved " + mWidth + "x" + mHeight + " frame as '" + filename + "'");
-            }
-            */
 }
