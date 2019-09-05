@@ -19,6 +19,8 @@ package com.example.decodertest;
 
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.SurfaceTexture;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
@@ -37,6 +39,7 @@ import android.os.Environment;
 import android.os.SystemClock;
 import android.util.Log;
 import android.view.Surface;
+import android.view.TextureView;
 import android.widget.ImageView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -65,7 +68,7 @@ import java.nio.FloatBuffer;
  * (This was derived from bits and pieces of CTS tests, and is packaged as such, but is not
  * currently part of CTS.)
  */
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements TextureView.SurfaceTextureListener{
     private static final String TAG = "ExtractMpegFramesTest";
     private static final boolean VERBOSE = true;           // lots of logging
 
@@ -75,13 +78,16 @@ public class MainActivity extends AppCompatActivity {
     //private static final String INPUT_FILE = "source2.mp4";
     private static final int TILE_COUNT = 4;
 
-    private static final int MAX_FRAMES = 30;       // stop extracting after this many
+    private static final int MAX_FRAMES = 3000;       // stop extracting after this many
     int mWidth;
     int mHeight;
 
     //arrays to store BMPs
     Bitmap[][] frames;
     int[] frameCounts;
+    private TextureView videoTexture;
+    Bitmap merged;
+    Boolean textureAvailable;
 
     //private ExtractMpegFramesWrapper extractor;
 
@@ -97,6 +103,10 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        videoTexture = new TextureView(this);
+        videoTexture.setSurfaceTextureListener(this);
+        setContentView(videoTexture);
+        textureAvailable = false;
 
         frames = new Bitmap[TILE_COUNT][MAX_FRAMES];
         frameCounts = new int[TILE_COUNT];
@@ -144,8 +154,16 @@ public class MainActivity extends AppCompatActivity {
 
                 //create new blank bitmap
                 //Bitmap blank = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
-                Bitmap merged = mergeBitmap(frames[0][frameCount],frames[1][frameCount],frames[2][frameCount],frames[3][frameCount]);
-                merged.compress(Bitmap.CompressFormat.PNG, 90, bos);
+                merged = mergeBitmap(frames[0][frameCount],frames[1][frameCount],frames[2][frameCount],frames[3][frameCount]);
+                //merged.compress(Bitmap.CompressFormat.PNG, 90, bos);
+                if (textureAvailable) {
+                    //haritha - can i lock the canvas here, set frameUpdated to true so that vsync will trigger 360
+                    // processing and then unlock and post in the vsync thread, or should i call the 360 rendering here?
+                    Canvas canvTemp = videoTexture.lockCanvas();
+                    canvTemp.drawBitmap(merged, 256 * 2, 192 * 2, null);
+                    videoTexture.unlockCanvasAndPost(canvTemp);
+                }
+                //SystemClock.sleep(10);
                 merged.recycle();
             } finally {
                 if (bos != null) bos.close();
@@ -155,6 +173,45 @@ public class MainActivity extends AppCompatActivity {
             }
 
         }
+    }
+
+    @Override
+    public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int i, int i1) {
+        textureAvailable = true;
+        /*
+        Bitmap temp = Bitmap.createBitmap(256*2, 192*2, Bitmap.Config.ARGB_8888);
+        Canvas canv = videoTexture.lockCanvas();
+        Paint paint = new Paint();
+        paint.setColor(Color.BLUE);
+        canv.drawRect(0F, 0F, (float) 256*2, (float) 192*2, paint);
+        //canv.drawBitmap(temp, 256*2, 192*2, null);
+        videoTexture.unlockCanvasAndPost(canv);
+
+
+        Log.d(TAG, "hegiht of bitmap "+ merged.getHeight());
+        SystemClock.sleep(5000);
+        while(true){
+
+            Canvas canvTemp = videoTexture.lockCanvas();
+            canvTemp.drawBitmap(merged, 256, 192, null);
+            videoTexture.unlockCanvasAndPost(canvTemp);
+            SystemClock.sleep(10);
+        }*/
+    }
+
+    @Override
+    public void onSurfaceTextureSizeChanged(SurfaceTexture surfaceTexture, int i, int i1) {
+
+    }
+
+    @Override
+    public boolean onSurfaceTextureDestroyed(SurfaceTexture surfaceTexture) {
+        return false;
+    }
+
+    @Override
+    public void onSurfaceTextureUpdated(SurfaceTexture surfaceTexture) {
+
     }
 
     //haritha - consumer thread to save bitmaps produced by the decoder threads
@@ -416,6 +473,7 @@ public class MainActivity extends AppCompatActivity {
 
                             long startWhen = System.nanoTime();
                             Bitmap bmp = outputSurface.saveFrame();
+
                             frames[frameID][decodeCount] = bmp;
                             frameCounts[frameID]++;
                             //Log.d(TAG, "Added frame to buffer, framecount1 " + frame1Count + " framecount2 " + frame2Count);
