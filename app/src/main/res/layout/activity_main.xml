@@ -6,10 +6,13 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <TextureView
-        android:id="@+id/videoView"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentTop="true"
-        android:layout_centerHorizontal="true" />
+
+    <com.example.decodertest.SphericalVideoPlayer
+        android:id="@+id/spherical_video_player"
+        android:background="@null"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"
+        />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

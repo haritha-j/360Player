@@ -17,10 +17,12 @@ package com.example.decodertest;
  */
 
 
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
@@ -37,18 +39,26 @@ import android.os.Bundle;
 import android.os.Environment;
 //import android.test.AndroidTestCase;
 import android.os.SystemClock;
+import android.renderscript.Allocation;
+import android.renderscript.RenderScript;
 import android.util.Log;
 import android.view.Surface;
 import android.view.TextureView;
+import android.view.View;
+import android.view.WindowManager;
 import android.widget.ImageView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
 import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -85,9 +95,16 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     //arrays to store BMPs
     Bitmap[][] frames;
     int[] frameCounts;
-    private TextureView videoTexture;
+    private SphericalVideoPlayer videoTexture;
     Bitmap merged;
     Boolean textureAvailable;
+    Boolean frameAvailable; //similar to frame available in 360 player, used to start 360 rendering
+    private long setPosition;
+    private static final String CURRENT_POSITION = MainActivity.CURRENT_POSITION;
+    Surface mSurface;
+    //Boolean allocated;
+    //RenderScript rs;
+    //Allocation al;
 
     //private ExtractMpegFramesWrapper extractor;
 
@@ -102,14 +119,27 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if(savedInstanceState!=null){
+            setPosition = savedInstanceState.getLong(CURRENT_POSITION);
+        }
+        else{
+            setPosition=0;
+        }
+
         setContentView(R.layout.activity_main);
-        videoTexture = new TextureView(this);
+        videoTexture = findViewById(R.id.spherical_video_player);
+        //videoTexture = new TextureView(this);
         videoTexture.setSurfaceTextureListener(this);
-        setContentView(videoTexture);
+        //setContentView(videoTexture);
         textureAvailable = false;
+        frameAvailable = true;
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
 
         frames = new Bitmap[TILE_COUNT][MAX_FRAMES];
         frameCounts = new int[TILE_COUNT];
+        //allocated = false;
+
 
         //extractor = new ExtractMpegFramesWrapper(this);
 
@@ -123,6 +153,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         } catch (Throwable throwable) {
             throwable.printStackTrace();
         }
+        videoTexture.setVisibility(View.VISIBLE);
     }
 
 
@@ -142,12 +173,12 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             //    SystemClock.sleep(20);
             //}
             Log.d(TAG, "Frame available on BMP arrays");
-            BufferedOutputStream bos = null;
-            File outputFile = new File(FILES_DIR,
-                    String.format("pics/frame-%02d.png", frameCount));
-            String filename = outputFile.toString();
+            //BufferedOutputStream bos = null;
+            //File outputFile = new File(FILES_DIR,
+            //       String.format("pics/frame-%02d.png", frameCount));
+            //String filename = outputFile.toString();
             try {
-                bos = new BufferedOutputStream(new FileOutputStream(filename));
+                //bos = new BufferedOutputStream(new FileOutputStream(filename));
                 //Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
                 //mPixelBuf.rewind();
                 //bmp.copyPixelsFromBuffer(mPixelBuf);
@@ -156,21 +187,33 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 //Bitmap blank = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
                 merged = mergeBitmap(frames[0][frameCount],frames[1][frameCount],frames[2][frameCount],frames[3][frameCount]);
                 //merged.compress(Bitmap.CompressFormat.PNG, 90, bos);
+
                 if (textureAvailable) {
+/*
+                    if (!allocated){
+                        rs = RenderScript.create(this, RenderScript.ContextType.NORMAL);
+                        al = Allocation.createFromBitmap(rs, merged);
+                        al.setSurface(mSurface);
+                        allocated = true;
+                    }else{
+                        al.copyFrom(merged);
+                    }
+                    */
+
                     //haritha - can i lock the canvas here, set frameUpdated to true so that vsync will trigger 360
                     // processing and then unlock and post in the vsync thread, or should i call the 360 rendering here?
-                    Canvas canvTemp = videoTexture.lockCanvas();
-                    canvTemp.drawBitmap(merged, 256 * 2, 192 * 2, null);
-                    videoTexture.unlockCanvasAndPost(canvTemp);
+                    Canvas canvTemp = mSurface.lockHardwareCanvas();
+                    canvTemp.drawBitmap(merged, 0, 0, null);
+                    //frameAvailable = true;
+                    mSurface.unlockCanvasAndPost(canvTemp);
+                    Log.d(TAG, "haritha - posted new canvas with width - "+mWidth+" height - "+mHeight);
                 }
                 //SystemClock.sleep(10);
                 merged.recycle();
             } finally {
-                if (bos != null) bos.close();
+                Log.d(TAG, "Saved " + mWidth + "x" + mHeight + " frame as '" + "'");
             }
-            if (VERBOSE) {
-                Log.d(TAG, "Saved " + mWidth + "x" + mHeight + " frame as '" + filename + "'");
-            }
+
 
         }
     }
@@ -178,17 +221,27 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     @Override
     public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int i, int i1) {
         textureAvailable = true;
-        /*
-        Bitmap temp = Bitmap.createBitmap(256*2, 192*2, Bitmap.Config.ARGB_8888);
-        Canvas canv = videoTexture.lockCanvas();
+
+        mSurface = videoTexture.initRenderThread(surfaceTexture, i, i1, setPosition);
+/*
+        Bitmap temp = Bitmap.createBitmap(i, i1, Bitmap.Config.ARGB_8888);
+        //Rect rect = new Rect(0,0,100,100);
+
+        Canvas canv = mSurface.lockHardwareCanvas();
+        //Log.d(TAG, "haritha - canvas attribs - height: "+ canv.getHeight() + " max height: "+ canv.getMaximumBitmapHeight());
         Paint paint = new Paint();
+        //paint.setTextSize(15);
         paint.setColor(Color.BLUE);
         canv.drawRect(0F, 0F, (float) 256*2, (float) 192*2, paint);
-        //canv.drawBitmap(temp, 256*2, 192*2, null);
-        videoTexture.unlockCanvasAndPost(canv);
+        //canv.drawBitmap(temp, 256*2, 192*2, paint);
+        Log.d(TAG, "haritha - canvas attribs - height: "+ canv.getHeight() + " max height: "+ canv.getMaximumBitmapHeight());
 
+        mSurface.unlockCanvasAndPost(canv);
 
-        Log.d(TAG, "hegiht of bitmap "+ merged.getHeight());
+*/
+
+        //Log.d(TAG, "hegiht of bitmap "+ merged.getHeight());
+/*
         SystemClock.sleep(5000);
         while(true){
 
@@ -206,6 +259,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
     @Override
     public boolean onSurfaceTextureDestroyed(SurfaceTexture surfaceTexture) {
+        videoTexture.releaseResources();
         return false;
     }
 
@@ -299,8 +353,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         MediaCodec decoder = null;
         CodecOutputSurface outputSurface = null;
         MediaExtractor extractor = null;
-        int saveWidth = 256;
-        int saveHeight = 192;
+        int saveWidth = 2048/2;
+        int saveHeight = 1024/2;
 
         try {
             File inputFile = new File(FILES_DIR, inputFileUrl);   // must be an absolute path
@@ -333,7 +387,11 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             // it contains a copy of the CSD-0/CSD-1 codec-specific data chunks.
             String mime = format.getString(MediaFormat.KEY_MIME);
             decoder = MediaCodec.createDecoderByType(mime);
-            decoder.configure(format, outputSurface.getSurface(), null, 0);
+            if (frameID==1){
+                decoder.configure(format, outputSurface.getSurface(), null, 0);
+            }else {
+                decoder.configure(format, outputSurface.getSurface(), null, 0);
+            }
             decoder.start();
 
 
@@ -449,7 +507,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                     if ((info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG)
                             != 0) {
                         if (VERBOSE) Log.d(TAG, "video decoder: codec config buffer");
-                        decoder.releaseOutputBuffer(decoderStatus, false);
+                        decoder.releaseOutputBuffer(decoderStatus, true);
                         break;
                     }
                     if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
@@ -473,7 +531,16 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
                             long startWhen = System.nanoTime();
                             Bitmap bmp = outputSurface.saveFrame();
-
+                            //Canvas cas = mSurface.lockCanvas(null);
+                            //cas.drawBitmap(bmp, 0, 0, null);
+                            //Paint myPaaint = new Paint();
+                            //myPaaint.setColor(Color.GREEN);
+                            //cas.drawCircle(5,5,5, myPaaint);
+                            //frameAvailable = true;
+                            //cas.restore();
+                            //mSurface.unlockCanvasAndPost(cas);
+                            //mSurface.release();
+                            //Log.d(TAG, "haritha - posted new canvas"+ cas.getMaximumBitmapHeight());
                             frames[frameID][decodeCount] = bmp;
                             frameCounts[frameID]++;
                             //Log.d(TAG, "Added frame to buffer, framecount1 " + frame1Count + " framecount2 " + frame2Count);
@@ -1017,4 +1084,26 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     }
     //code to combine 2 bitmaps and save them
 
+    public static String readRawTextFile(Context context, int resId) {
+        InputStream is = context.getResources().openRawResource(resId);
+        InputStreamReader reader = new InputStreamReader(is);
+        BufferedReader buf = new BufferedReader(reader);
+        StringBuilder text = new StringBuilder();
+        try {
+            String line;
+            while ((line = buf.readLine()) != null) {
+                text.append(line).append('\n');
+            }
+        } catch (IOException e) {
+            return null;
+        }
+        return text.toString();
+    }
+
+    public static void toast(Context context, String msg) {
+        Toast.makeText(
+                context,
+                msg,
+                Toast.LENGTH_SHORT).show();
+    }
 }
