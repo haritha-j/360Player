@@ -273,7 +273,7 @@ public class SphericalVideoPlayer extends TextureView implements SensorEventList
         });
     }
 
-    public Surface initRenderThread(SurfaceTexture surface, int width, int height, long currentPosition) {
+    public Surface initRenderThread(SurfaceTexture surface, int width, int height, long currentPosition, int frameHeight, int frameWidth) {
         setPosition = currentPosition;
         renderThread = new RenderThread(RENDER_THREAD_NAME);
         renderThread.start();
@@ -285,7 +285,7 @@ public class SphericalVideoPlayer extends TextureView implements SensorEventList
         renderThread.handler.sendMessage(msg);
         Log.d(TAG, "haritha - render thread initialized");
         //haritha - create the new surface here
-        mSurface = renderThread.getVideoDecodeSurface();
+        mSurface = renderThread.getVideoDecodeSurface(frameHeight, frameWidth);
         return mSurface;
     }
 
@@ -298,7 +298,7 @@ public class SphericalVideoPlayer extends TextureView implements SensorEventList
         // Wait for render surface creation to start preparing the video.
         readyToPlay = true;
     }
-
+/*
     private void prepareVideo(String videoPath) {
         if (renderThread == null) {
             throw new IllegalStateException("RenderThread has not been initialized");
@@ -346,7 +346,7 @@ public class SphericalVideoPlayer extends TextureView implements SensorEventList
             Log.d("Debug"," "+setPosition);
             videoPlayerInternal.start();
         }
-    }
+    }*/
 
     public void releaseResources() {
         renderThread.handler.sendEmptyMessage(RenderThread.MSG_SURFACE_DESTROYED);
@@ -467,7 +467,7 @@ public class SphericalVideoPlayer extends TextureView implements SensorEventList
             };
         }
 
-        private Surface getVideoDecodeSurface() {
+        private Surface getVideoDecodeSurface(int frameHeight, int frameWidth) {
             if (!eglRenderTarget.hasValidContext()) {
                 throw new IllegalStateException(
                         "Cannot get video decode surface without GL context");
@@ -475,7 +475,7 @@ public class SphericalVideoPlayer extends TextureView implements SensorEventList
 
             videoDecodeTextureId = GLHelpers.generateExternalTexture();
             videoSurfaceTexture = new SurfaceTexture(videoDecodeTextureId);
-            videoSurfaceTexture.setDefaultBufferSize(2048, 1024);
+            videoSurfaceTexture.setDefaultBufferSize(frameWidth, frameHeight);
 
             videoSurfaceTexture.setOnFrameAvailableListener(
                     new SurfaceTexture.OnFrameAvailableListener() {
