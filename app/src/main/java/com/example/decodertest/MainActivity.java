@@ -93,7 +93,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
     // where to find files (note: requires WRITE_EXTERNAL_STORAGE permission)
     private static final File FILES_DIR = Environment.getExternalStorageDirectory();
-    private static final String INPUT_FILE = "ouput";
+    private static final String INPUT_FILE = "output";
     //private static final String INPUT_FILE = "source2.mp4";
     private static final int X = 5;
     private static final int Y = 4;
