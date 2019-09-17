@@ -709,8 +709,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                             if (decodeCount%4==0){
                                 outputSurface.drawImage(true);
                                 long startWhen = System.nanoTime();
-                                Bitmap bmp = outputSurface.saveFrame();
-                                bmQueues.addFrame(bmp, frameID);
+                                //Bitmap bmp = outputSurface.saveFrame();
+                                //bmQueues.addFrame(bmp, frameID);
                                 Log.d(TAG, "queue - frame added to queue "+ decodeCount);
                                 frameSaveTime += System.nanoTime() - startWhen;
                             }
@@ -718,7 +718,10 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                         else {
                             outputSurface.drawImage(true);
                             long startWhen = System.nanoTime();
-                            Bitmap bmp = outputSurface.saveFrame();
+                            ByteBuffer mPixelBuf = outputSurface.saveFrame();
+                            Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_4444);
+                            bmp.copyPixelsFromBuffer(mPixelBuf);
+                            //Bitmap bmp = outputSurface.saveFrame();
                             bmQueues.addFrame(bmp, frameID);
                             Log.d(TAG, "queue - frame added to queue "+ decodeCount);
                             frameSaveTime += System.nanoTime() - startWhen;
@@ -781,7 +784,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         private boolean mFrameAvailable;
 
         private ByteBuffer mPixelBuf;// used by saveFrame()
-        public Bitmap bmp;
+        //public Bitmap bmp;
         //private ByteBuffer buff2;
 
         /**
@@ -987,7 +990,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         /**
          * Saves the current frame to disk as a PNG image.
          */
-        public Bitmap saveFrame() throws IOException {
+        public ByteBuffer saveFrame() throws IOException {
             // glReadPixels gives us a ByteBuffer filled with what is essentially big-endian RGBA
             // data (i.e. a byte of red, followed by a byte of green...).  To use the Bitmap
             // constructor that takes an int[] array with pixel data, we need an int[] filled
@@ -1031,9 +1034,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             //ByteBuffer finalBuff = ByteBuffer.wrap(combinedArray);
 
             //mPixelBuf.rewind();
-            bmp.copyPixelsFromBuffer(mPixelBuf);
             //bmp.recycle();
-            return bmp;
+            return mPixelBuf;
         }
 
 
