@@ -93,7 +93,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
     // where to find files (note: requires WRITE_EXTERNAL_STORAGE permission)
     private static final File FILES_DIR = Environment.getExternalStorageDirectory();
-    private static final String INPUT_FILE = "output";
+    private static final String INPUT_FILE = "ouput";
     //private static final String INPUT_FILE = "source2.mp4";
     private static final int X = 5;
     private static final int Y = 4;
@@ -119,6 +119,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     Surface mSurface;
     int frameHeight;
     int frameWidth;
+    int width, height;
+    int y,x;
     //Boolean allocated;
     //RenderScript rs;
     //Allocation al;
@@ -176,8 +178,9 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     }
 
 
-    private void consumeBMPs() throws IOException {
+    private void consumeBMPs() {
         int frameCount = 0;
+        long completeStart = System.nanoTime();
         while(true) {
             //Log.d(TAG, " framecount = " + frameCount + " framecounts " + frameCounts[0] + "  " + frameCounts[1] + "  " + frameCounts[2] + "  " + frameCounts[3]);
 
@@ -205,39 +208,88 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
                 //create new blank bitmap
                 //Bitmap blank = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
+                long startGet = System.nanoTime();
                 frame = bmQueues.getFrame();
-                Log.d(TAG, "queue - collected frame "+frameCount);
+                long getTime = System.nanoTime() - startGet;
+                Log.d(TAG, "queue - collected frame "+frameCount +" time "+ getTime);
                 //merged = mergeBitmap(frames[0][frameCount],frames[1][frameCount],frames[2][frameCount],frames[3][frameCount]);
-                merged = mergeBitmap(frame, X,Y);
+                //mergeBitmap(X,Y);
                 //merged.compress(Bitmap.CompressFormat.PNG, 90, bos);
 
-                if (textureAvailable) {
-/*
-                    if (!allocated){
-                        rs = RenderScript.create(this, RenderScript.ContextType.NORMAL);
-                        al = Allocation.createFromBitmap(rs, merged);
-                        al.setSurface(mSurface);
-                        allocated = true;
-                    }else{
-                        al.copyFrom(merged);
-                    }
-                    */
 
-                    //haritha - can i lock the canvas here, set frameUpdated to true so that vsync will trigger 360
-                    // processing and then unlock and post in the vsync thread, or should i call the 360 rendering here?
-                    Canvas canvTemp = mSurface.lockCanvas(null);
-                    canvTemp.drawBitmap(merged, 0, 0, null);
-                    //frameAvailable = true;
-                    mSurface.unlockCanvasAndPost(canvTemp);
-                    Log.d(TAG, "haritha - posted new canvas with width - "+mWidth+" height - "+mHeight);
+/*
+                if (!allocated){
+                    rs = RenderScript.create(this, RenderScript.ContextType.NORMAL);
+                    al = Allocation.createFromBitmap(rs, merged);
+                    al.setSurface(mSurface);
+                    allocated = true;
+                }else{
+                    al.copyFrom(merged);
                 }
+                */
+
+                //haritha - can i lock the canvas here, set frameUpdated to true so that vsync will trigger 360
+                // processing and then unlock and post in the vsync thread, or should i call the 360 rendering here?
+                width = frame[0].getWidth();
+                height = frame[0].getHeight();
+                Rect rectangle;
+                Canvas canvTemp;
+                //post only 4 of the tiles, 1/4th of the time
+                if (true){
+                    long startGet2 = System.nanoTime();
+                    canvTemp = mSurface.lockHardwareCanvas();
+                    for (int i = 0; i < X*Y ; i++) {
+                        x = i % X;
+                        y = i / X;
+                        Log.d(TAG, "queue - x " + x + " y " + y);
+                        canvTemp.drawBitmap(frame[i], width * x, height * y, null);
+                    }
+                    //long postStart = System.nanoTime();
+
+                    mSurface.unlockCanvasAndPost(canvTemp);
+                    long get2Time = System.nanoTime() - startGet2;
+                    Log.d(TAG, "haritha -draw time full "+ get2Time);
+                    //long postTime = System.nanoTime() - postStart;
+                }
+                else{
+                    for (int j =0; j <4; j++){
+                        x = j % X;
+                        y = j / X;
+                        long startGet2 = System.nanoTime();
+                        rectangle = new Rect(width*x,height*y, width*(x+1), height*(x+1));
+                        canvTemp = mSurface.lockHardwareCanvas();
+                        Log.d(TAG, "queue - x " + x + " y " + y);
+                        canvTemp.drawBitmap(frame[j], width * x, height * y, null);
+                        //long postStart = System.nanoTime();
+
+                        mSurface.unlockCanvasAndPost(canvTemp);
+                        long get2Time = System.nanoTime() - startGet2;
+                        Log.d(TAG, "haritha -draw time partial "+ get2Time);
+                        //long postTime = System.nanoTime() - postStart;
+                    }
+                }
+
+                //after locking the canvas, post each of the tiles to the temp canvas
+
+                //canvTemp.drawBitmap(merged, 0, 0, null);
+                //frameAvailable = true;
+
+
                 //SystemClock.sleep(10);
-                merged.recycle();
+                //merged.recycle();
+                //Log.d(TAG, "haritha - posted new canvas with width - "+mWidth+" height - "+mHeight + " time "+ postTime);
+                long totalTime = System.nanoTime() - startGet;
+                Log.d(TAG, "haritha -total time "+ totalTime);
+
             } finally {
                 Log.d(TAG, "Saved " + mWidth + "x" + mHeight + " frame as '" + "'");
             }
 
             frameCount++;
+            if (frameCount == 500){
+                Long completeTime = System.nanoTime() - completeStart;
+                Log.d(TAG, "haritha - complete time "+ completeTime);
+            }
         }
     }
 
@@ -332,6 +384,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         private MainActivity mTest;
         private String mFileName;
         private int mFrameID;
+        private boolean lowFPS = false;
 
         private ExtractMpegFramesWrapper(MainActivity test, String fileName, int frameID) {
             mTest = test;
@@ -343,7 +396,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         @Override
         public void run() {
             try {
-                mTest.extractMpegFrames(mFileName, mFrameID);
+                mTest.extractMpegFrames(mFileName, mFrameID, lowFPS);
             } catch (Throwable th) {
                 Log.d(TAG, "error running extractor", th);
                 mThrowable = th;
@@ -416,7 +469,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         }
     }*/
 
-    private static class BitmapQueues{
+    private class BitmapQueues{
         private ArrayBlockingQueue<Bitmap>[] queue;
         //private int[] currentFrame;
         private int tileCount;
@@ -471,7 +524,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
      * it by adjusting the GL viewport to get letterboxing or pillarboxing, but generally if
      * you're extracting frames you don't want black bars.
      */
-    private void extractMpegFrames(String inputFileUrl, int frameID) throws IOException {
+    private void extractMpegFrames(String inputFileUrl, int frameID, boolean lowFPS) throws IOException {
         MediaCodec decoder = null;
         CodecOutputSurface outputSurface = null;
         MediaExtractor extractor = null;
@@ -520,7 +573,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             decoder.start();
 
 
-            doExtract(extractor, trackIndex, decoder, outputSurface, frameID);
+            doExtract(extractor, trackIndex, decoder, outputSurface, frameID, lowFPS);
         } finally {
             // release everything we grabbed
             if (outputSurface != null) {
@@ -565,7 +618,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
      * Work loop.
      */
     private void doExtract(MediaExtractor extractor, int trackIndex, MediaCodec decoder,
-                           CodecOutputSurface outputSurface, int frameID) throws IOException {
+                           CodecOutputSurface outputSurface, int frameID, boolean lowFPS) throws IOException {
         final int TIMEOUT_USEC = 2000;
         ByteBuffer[] decoderInputBuffers = decoder.getInputBuffers();
         MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
@@ -650,10 +703,28 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                     if (doRender) {
                         if (VERBOSE) Log.d(TAG, "awaiting decode of frame " + decodeCount);
                         outputSurface.awaitNewImage();
-                        outputSurface.drawImage(true);
+                        //only draw one quater of frames
+                        //if (!(frameID%4 == 0)){
+                        if (lowFPS){
+                            if (decodeCount%4==0){
+                                outputSurface.drawImage(true);
+                                long startWhen = System.nanoTime();
+                                Bitmap bmp = outputSurface.saveFrame();
+                                bmQueues.addFrame(bmp, frameID);
+                                Log.d(TAG, "queue - frame added to queue "+ decodeCount);
+                                frameSaveTime += System.nanoTime() - startWhen;
+                            }
+                        }
+                        else {
+                            outputSurface.drawImage(true);
+                            long startWhen = System.nanoTime();
+                            Bitmap bmp = outputSurface.saveFrame();
+                            bmQueues.addFrame(bmp, frameID);
+                            Log.d(TAG, "queue - frame added to queue "+ decodeCount);
+                            frameSaveTime += System.nanoTime() - startWhen;
+                        }
 
-                        long startWhen = System.nanoTime();
-                        Bitmap bmp = outputSurface.saveFrame();
+
                         //Canvas cas = mSurface.lockCanvas(null);
                         //cas.drawBitmap(bmp, 0, 0, null);
                         //Paint myPaaint = new Paint();
@@ -665,17 +736,19 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                         //mSurface.release();
                         //Log.d(TAG, "haritha - posted new canvas"+ cas.getMaximumBitmapHeight());
                         //frames[frameID][decodeCount] = bmp;
-                        bmQueues.addFrame(bmp, frameID);
-                        Log.d(TAG, "queue - frame added to queue "+ decodeCount);
+
                         //frameCounts[frameID]++;
                         //Log.d(TAG, "Added frame to buffer, framecount1 " + frame1Count + " framecount2 " + frame2Count);
-                        frameSaveTime += System.nanoTime() - startWhen;
+
 
                         decodeCount++;
                     }
+
                 }
             }
         }
+        Log.d(TAG, "framesave time for tile "+ frameID + " is "+frameSaveTime + " saved "+decodeCount+ " frames.");
+
 
         int numSaved = (MAX_FRAMES < decodeCount) ? MAX_FRAMES : decodeCount;
         //Log.d(TAG, "Saving " + numSaved + " frames took " +
@@ -708,6 +781,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         private boolean mFrameAvailable;
 
         private ByteBuffer mPixelBuf;// used by saveFrame()
+        public Bitmap bmp;
         //private ByteBuffer buff2;
 
         /**
@@ -721,7 +795,6 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             }
             mWidth = width;
             mHeight = height;
-
             eglSetup();
             makeCurrent();
             setup();
@@ -754,6 +827,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
             mPixelBuf = ByteBuffer.allocateDirect(mWidth * mHeight * 4);
             mPixelBuf.order(ByteOrder.LITTLE_ENDIAN);
+            Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_4444);
+
             //buff2 = ByteBuffer.allocateDirect(mWidth * mHeight * 4);
             //buff2.order(ByteOrder.LITTLE_ENDIAN);
         }
@@ -955,8 +1030,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             //System.arraycopy(pixelBytes2,0,combinedArray,0, pixelBytes2.length);
             //ByteBuffer finalBuff = ByteBuffer.wrap(combinedArray);
 
-            Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_4444);
-            mPixelBuf.rewind();
+            //mPixelBuf.rewind();
             bmp.copyPixelsFromBuffer(mPixelBuf);
             //bmp.recycle();
             return bmp;
@@ -1208,21 +1282,22 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         return comboBitmap;
     }
 
-    public Bitmap mergeBitmap(Bitmap[] bmp, int X, int Y){
-        Bitmap comboBitmap;
+    public void mergeBitmap(int X, int Y){
+        long startMerge = System.nanoTime();
         int width, height;
         int y,x;
-        width = bmp[0].getWidth();
-        height = bmp[0].getHeight();
-        comboBitmap = Bitmap.createBitmap(width*X, height*Y, Bitmap.Config.ARGB_4444);
-        Canvas comboImage = new Canvas(comboBitmap);
+        width = frame[0].getWidth();
+        height = frame[0].getHeight();
+        merged = Bitmap.createBitmap(width*X, height*Y, Bitmap.Config.ARGB_4444);
+        Canvas comboImage = new Canvas(merged);
         for (int i = 0; i < X*Y; i++){
             x = i % X;
             y= i/X;
             Log.d(TAG, "queue - x "+x+" y "+y);
-            comboImage.drawBitmap(bmp[i], width*x, height*y, null);
+            comboImage.drawBitmap(frame[i], width*x, height*y, null);
         }
-        return comboBitmap;
+        long endMerge = System.nanoTime() - startMerge;
+        Log.d(TAG, "merge time "+ endMerge);
     }
 
 
