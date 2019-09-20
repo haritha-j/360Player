@@ -63,7 +63,6 @@ public class SphericalSceneRenderer {
         GLES20.glDisable(GLES20.GL_DEPTH_TEST);
 
         sphere = new Sphere(SPHERE_SLICES, 0.f, 0.f, 0.f, SPHERE_RADIUS, SPHERE_INDICES_PER_VERTEX);
-
         /**Program is created using the glCreateProgram. There are several functions called when
          * creting the program. Previously mentioned vertex and fragment shaders are used for the
          * program creation. This function install the created program to the rendering process in
@@ -121,6 +120,20 @@ public class SphericalSceneRenderer {
                     sphere.getNumIndices()[j], GLES20.GL_UNSIGNED_SHORT,
                     sphere.getIndices()[j]);
         }
+/*
+        // clear Screen and Depth Buffer
+        GLES20.glClear(GL10.GL_COLOR_BUFFER_BIT | GL10.GL_DEPTH_BUFFER_BIT);
+        GLES20.glClear(GL10.GL_COLOR_BUFFER_BIT | GL10.GL_DEPTH_BUFFER_BIT);
+
+        // Reset the Modelview Matrix
+        gl.glLoadIdentity();
+
+        // Drawing
+        gl.glTranslatef(0.0f, 0.0f, -5.0f);		// move 5 units INTO the screen
+        // is the same as moving the camera 5 units away
+//		gl.glScalef(0.5f, 0.5f, 0.5f);			// scale the square to 50%
+        // otherwise it will be too large
+        square.draw(gl);*/
     }
 
     public void release() {
