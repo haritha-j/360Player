@@ -93,7 +93,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
     // where to find files (note: requires WRITE_EXTERNAL_STORAGE permission)
     private static final File FILES_DIR = Environment.getExternalStorageDirectory();
-    private static final String INPUT_FILE = "ouput";
+    private static final String INPUT_FILE = "output";
     //private static final String INPUT_FILE = "source2.mp4";
     private static final int X = 5;
     private static final int Y = 4;
@@ -110,7 +110,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     BitmapQueues bmQueues;
     Boolean[] frameready;
     ArrayBlockingQueue<Bitmap> MergedQueue;
-    Bitmap[] frame;
+    ByteBuffer[] frame;
     EGLPosterRendererThread bitmapRendererThread;
     boolean bitmapRendererInitialized;
 
@@ -124,7 +124,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     Surface mSurface;
     int frameHeight;
     int frameWidth;
-    int width, height;
+    //int width, height;
     int y,x;
     //Boolean allocated;
     //RenderScript rs;
@@ -168,7 +168,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         for (int y = 0; y< TILE_COUNT; y++){
             frameready[y] = false;
         }
-        frame = new Bitmap[TILE_COUNT];
+        frame = new ByteBuffer[TILE_COUNT];
         //allocated = false;
 
 
@@ -201,11 +201,11 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
                 //render using opengl
                 if (!bitmapRendererInitialized){
-                    bitmapRendererThread.renderFirstBitmap(bmp);
+                    //bitmapRendererThread.renderFirstBitmap(bmp);
                     //bitmapRendererInitialized = true;
                 }
                 else{
-                    bitmapRendererThread.updateRenderPoster(bmp);
+                    //bitmapRendererThread.updateRenderPoster(bmp);
                 }
 
                 //render using canvas
@@ -263,10 +263,11 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 //Bitmap blank = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
                 long startGet = System.nanoTime();
 
-                //frame = bmQueues.getFrame();
+                frame = bmQueues.getFrame();
 
                 //boolean implementation instead of blocking queue
                 //check if all 20 tiles are ready
+                /*
                 Boolean allFramesReady = false;
                 Log.d(TAG, "har - loop number "+frameCount);
                 while (!allFramesReady) {
@@ -286,7 +287,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                         }
                     }
 
-                }
+                }*/
 
                 long getTime = System.nanoTime() - startGet;
                 Log.d(TAG, "queue - collected frame "+frameCount +" time "+ getTime);
@@ -307,10 +308,10 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
                 //haritha - can i lock the canvas here, set frameUpdated to true so that vsync will trigger 360
                 // processing and then unlock and post in the vsync thread, or should i call the 360 rendering here?
-                width = frame[0].getWidth();
-                height = frame[0].getHeight();
+                //width = mWidth;
+                //height = mHeight;
                 //Rect rectangle;
-                Canvas canvTemp;
+
                 //post only 4 of the tiles, 1/4th of the time
 
                 //haritha - merge and store the bitmap
@@ -327,23 +328,26 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }*/
-/*                  //merge and display on the same thread
-                bmp = mergeBitmap(X,Y);
+
+                  //display on the same thread
+                //bmp = mergeBitmap(X,Y);
                 if (!bitmapRendererInitialized){
-                    bitmapRendererThread.renderFirstBitmap(bmp);
+
+                    bitmapRendererThread.renderFirstBitmap(frame, mWidth, mHeight);
                     //bitmapRendererInitialized = true;
                 }
                 else{
-                    bitmapRendererThread.updateRenderPoster(bmp);
-                }*/
+                    bitmapRendererThread.performRenderPoster(frame, mWidth, mHeight);
+                }
 
 
                 //EGLPosterRenderer.render(frame[10]).recycleBitmap(true).into(mSurface);
                 //EGLPosterRenderer.render(colorBitmap(Color.GREEN)).recycleBitmap(true).into(mSurface);
-                //Long renderTime = System.nanoTime() - renderStart;
-                //Log.d(TAG, "render time "+ renderTime);
+                Long renderTime = System.nanoTime() - renderStart;
+                Log.d(TAG, "render time "+ renderTime);
               //post directly onto canvas
-
+/*
+                Canvas canvTemp;
                 canvTemp = mSurface.lockHardwareCanvas();
                 for (int i = 0; i < X*Y ; i++) {
                     x = i % X;
@@ -356,7 +360,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 long startGet2 = System.nanoTime();
                 mSurface.unlockCanvasAndPost(canvTemp);
                 long get2Time = System.nanoTime() - startGet2;
-                Log.d(TAG, "haritha -draw time full "+ get2Time);
+                Log.d(TAG, "haritha -draw time full "+ get2Time);*/
                 //long postTime = System.nanoTime() - postStart;
                 /*
                 else{
@@ -411,7 +415,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         textureAvailable = true;
 
         mSurface = videoTexture.initRenderThread(surfaceTexture, i, i1, setPosition, frameHeight, frameWidth);
-        bitmapRendererThread = new EGLPosterRendererThread(true, mSurface);
+        bitmapRendererThread = new EGLPosterRendererThread(true, mSurface, X, Y);
         bitmapRendererInitialized = false;
         MergedQueue = new ArrayBlockingQueue<Bitmap>(10);
 /*
@@ -618,23 +622,23 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     }*/
 
     private class BitmapQueues{
-        private ArrayBlockingQueue<Bitmap>[] queue;
+        private ArrayBlockingQueue<ByteBuffer>[] queue;
         //private int[] currentFrame;
         private int tileCount;
         private int frameLimit;
-        private Bitmap[] tileCollection;
+        private ByteBuffer[] tileCollection;
 
         private BitmapQueues(int tileCount, int frameLimit){
             this.tileCount = tileCount;
             this.frameLimit = frameLimit;
-            tileCollection = new Bitmap[tileCount];
+            tileCollection = new ByteBuffer[tileCount];
             //currentFrame = new int[tileCount];
 
 
             queue = new ArrayBlockingQueue[tileCount];
 
             for (int j=0; j < tileCount; j++){
-                queue[j] = new ArrayBlockingQueue<Bitmap>(frameLimit);
+                queue[j] = new ArrayBlockingQueue<ByteBuffer>(frameLimit);
             }
             /*
             for (int i = 0; i < tileCount; i++){
@@ -642,15 +646,15 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             }*/
         }
 
-        public void addFrame(Bitmap bmp, int tileID){
+        public void addFrame(ByteBuffer img, int tileID){
             try {
-                queue[tileID].put(bmp);
+                queue[tileID].put(img);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
         }
 
-        public Bitmap[] getFrame(){
+        public ByteBuffer[] getFrame(){
             for (int i=0; i < tileCount; i++){
                 try {
                     //Log.d(TAG, "queue - remaining space before "+ queue[i].remainingCapacity());
@@ -866,24 +870,24 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                         else {
                             outputSurface.drawImage(true);
                             long startWhen = System.nanoTime();
-                            ByteBuffer mPixelBuf = outputSurface.saveFrame();
-                            Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_4444);
-                            bmp.copyPixelsFromBuffer(mPixelBuf);
+                            //Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_4444);
+                            //bmp.copyPixelsFromBuffer(mPixelBuf);
                             //Bitmap bmp = outputSurface.saveFrame();
+                            /*
                             boolean tilePosted = false;
                             while (!tilePosted) {
                                 if (!frameready[frameID]) {
                                     frameready[frameID] = true;
-                                    frame[frameID] = bmp;
+                                    frame[frameID] = outputSurface.saveFrame();
                                     tilePosted = true;
                                     Log.d(TAG, "har - posted new tile");
                                 } else {
                                     SystemClock.sleep(3);
                                 }
-                            }
+                            }*/
 
 
-                            //bmQueues.addFrame(bmp, frameID);
+                            bmQueues.addFrame(outputSurface.saveFrame(), frameID);
 
                             Log.d(TAG, "queue - frame added to queue "+ decodeCount);
                             frameSaveTime += System.nanoTime() - startWhen;
@@ -1446,13 +1450,13 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         comboImage.drawBitmap(t4, t3.getWidth(), t2.getHeight(), null);
         return comboBitmap;
     }
-
+/*
     public Bitmap mergeBitmap(int X, int Y){
         long startMerge = System.nanoTime();
         int width, height;
         int y,x;
-        width = frame[0].getWidth();
-        height = frame[0].getHeight();
+        width = mWidth;
+        height = mHeight;
         merged = Bitmap.createBitmap(width*X, height*Y, Bitmap.Config.ARGB_4444);
         Canvas comboImage = new Canvas(merged);
         for (int i = 0; i < X*Y; i++){
@@ -1464,7 +1468,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         long endMerge = System.nanoTime() - startMerge;
         Log.d(TAG, "merge time "+ endMerge);
         return merged;
-    }
+    }*/
 
 
 

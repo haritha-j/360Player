@@ -138,11 +138,18 @@ public class EGLPosterRendererThread{
     private EGLContext eglContext;
     int[] textures;
     int program;
+    int X;
+    int Y;
+    int TILE_COUNT;
 
-    public EGLPosterRendererThread(boolean recycleBitmap, Surface surface) {
+
+    public EGLPosterRendererThread(boolean recycleBitmap, Surface surface, int X, int Y) {
         this.recycleBitmap = recycleBitmap;
         this.surface = surface;
         this.nativeWindow = surface;
+        this.X = X;
+        this.Y = Y;
+        this.TILE_COUNT = X*Y;
     }
 
     public EGLPosterRendererThread(boolean recycleBitmap, SurfaceTexture surfaceTexture) {
@@ -161,9 +168,9 @@ public class EGLPosterRendererThread{
         shutdownEGL();
     }
   */
-    public void renderFirstBitmap(Bitmap bitmap) {
+    public void renderFirstBitmap(ByteBuffer[] images, int width, int height) {
         initEGL();
-        performRenderPoster(bitmap);
+        performRenderPoster(images, width, height);
         shutdownEGL();
     }
 /*
@@ -172,14 +179,27 @@ public class EGLPosterRendererThread{
     }*/
 
     //haritha - update the poster instead of recreating it
-    public void updateRenderPoster(Bitmap bitmap) {
+    public void updateRenderPoster(ByteBuffer[] images, int width, int height) {
         //haritha - convert bitmap to texture and bind it, draw it
-        int texture = createTexture(GLES20.GL_TEXTURE_2D, bitmap);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture);
-        int tex = GLES20.glGetUniformLocation(program, "sTexture");
-        GLES20.glUniform1i(tex, 0);
+        int texture;
+        //int width = bitmap[0].getWidth();
+        //int height = bitmap[0].getHeight();
+        Long looptime = Long.valueOf(0);
+        for (int i = 0; i < TILE_COUNT; i++){
+            Long drawStart = System.nanoTime();
+            texture = createTexture(GLES20.GL_TEXTURE_2D, images[i], i, width, height);
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture);
+            int tex = GLES20.glGetUniformLocation(program, "sTexture");
+            GLES20.glUniform1i(tex, 0);
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+            Long drawTime = System.nanoTime() - drawStart;
+            looptime += drawTime;
+            Log.d(TAG, "render time "+ drawTime + " for tile " + i);
+        }
+        Log.d(TAG, "render time for loop "+ looptime);
 
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+
+
         egl10.eglSwapBuffers(eglDisplay, eglSurface);
 
         Log.d(TAG, "performRenderPoster");
@@ -188,7 +208,7 @@ public class EGLPosterRendererThread{
 
     }
 
-    public void performRenderPoster(Bitmap bitmap) {
+    public void performRenderPoster(ByteBuffer[] bitmap, int width, int height) {
         program = GLES20.glCreateProgram();
         if (program == 0) {
             checkGLESError("create program");
@@ -234,7 +254,7 @@ public class EGLPosterRendererThread{
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
         egl10.eglSwapBuffers(eglDisplay, eglSurface);
 */
-        updateRenderPoster(bitmap);
+        updateRenderPoster(bitmap, width, height);
 
         Log.d(TAG, "performRenderPoster");
         //GLES20.glDisableVertexAttribArray(positionIndex);
@@ -242,15 +262,18 @@ public class EGLPosterRendererThread{
     }
 
     //haritha - update texture instead of recreating it
-    private int updateTexture(int target, Bitmap bitmap){
-        GLUtils.texImage2D(target, 0, bitmap, 0);
-        return textures[0];
+    private void updateTexture(int target, ByteBuffer image, int width, int height){
+        //GLES20.texImage2D(target, 0, GLES20.GL_RGB, width,  0);
+
     }
 
-    private int createTexture(int target, Bitmap bitmap) {
+    private int createTexture(int target, ByteBuffer image, int i, int width, int height) {
         textures = new int[1];
         //choose the viewport to draw
-        //GLES20.glViewport(0,0, bitmap.getWidth(), bitmap.getHeight());
+        int x = (i % X)* width;
+        int y= (Y- (i/X + 1))* height;
+        //Log.d(TAG, "viewport - height = "+height+" width = "+width+" x = "+x+" y = "+y);
+        GLES20.glViewport(x,y, width, height);
         GLES20.glGenTextures(1, textures, 0);
         checkGLESError("gen texture");
         GLES20.glBindTexture(target, textures[0]);
@@ -260,10 +283,12 @@ public class EGLPosterRendererThread{
         GLES20.glTexParameteri(target, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
         GLES20.glTexParameteri(target, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
         //GLUtils.texImage2D(target, 0, bitmap, 0);
-        textures[0] = updateTexture(target, bitmap);
+        updateTexture(target, image, width, height);
+        GLES20.glTexImage2D(target, 0 , GLES20.GL_RGBA, width, height, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, image);
+        /*
         if (recycleBitmap && !bitmap.isRecycled()) {
             bitmap.recycle();
-        }
+        }*/
         checkGLESError("tex image 2d");
         return textures[0];
     }
