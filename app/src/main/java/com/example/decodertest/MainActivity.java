@@ -93,7 +93,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
     // where to find files (note: requires WRITE_EXTERNAL_STORAGE permission)
     private static final File FILES_DIR = Environment.getExternalStorageDirectory();
-    private static final String INPUT_FILE = "output";
+    private static final String INPUT_FILE = "ouput";
     //private static final String INPUT_FILE = "source2.mp4";
     private static final int X = 5;
     private static final int Y = 4;
@@ -108,6 +108,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     //int[] frameCounts;
 
     BitmapQueues bmQueues;
+    Boolean[] frameready;
     ArrayBlockingQueue<Bitmap> MergedQueue;
     Bitmap[] frame;
     EGLPosterRendererThread bitmapRendererThread;
@@ -163,6 +164,10 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         //frameCounts = new int[TILE_COUNT];
 
         bmQueues = new BitmapQueues(TILE_COUNT, MAX_FRAMES);
+        frameready = new Boolean[TILE_COUNT];
+        for (int y = 0; y< TILE_COUNT; y++){
+            frameready[y] = false;
+        }
         frame = new Bitmap[TILE_COUNT];
         //allocated = false;
 
@@ -185,7 +190,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
     private void renderFrames() {
         Bitmap bmp;
-        SystemClock.sleep(1000);
+        //SystemClock.sleep(1000);
         Canvas canvTemp;
         while (true){
             long startRender = System.nanoTime();
@@ -227,6 +232,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     private void consumeBMPs() {
         int frameCount = 0;
         long completeStart = System.nanoTime();
+        SystemClock.sleep(1000);
         Bitmap bmp;
         while(true) {
             //Log.d(TAG, " framecount = " + frameCount + " framecounts " + frameCounts[0] + "  " + frameCounts[1] + "  " + frameCounts[2] + "  " + frameCounts[3]);
@@ -257,7 +263,31 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 //Bitmap blank = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
                 long startGet = System.nanoTime();
 
-                frame = bmQueues.getFrame();
+                //frame = bmQueues.getFrame();
+
+                //boolean implementation instead of blocking queue
+                //check if all 20 tiles are ready
+                Boolean allFramesReady = false;
+                Log.d(TAG, "har - loop number "+frameCount);
+                while (!allFramesReady) {
+                    Log.d(TAG, "har - loop number "+frameCount + " sub loop");
+                    for (int x = 0; x < TILE_COUNT; x++) {
+                        Log.d(TAG, "har - x = "+x);
+                        if (!frameready[x]) {
+                            SystemClock.sleep(3);
+                            break;
+                        }
+                        if (x == TILE_COUNT-1){
+                            allFramesReady = true;
+                            Log.d(TAG, "har - all tiles are ready");
+                            for (int z = 0; z < TILE_COUNT; z++){
+                                frameready[z] = false;
+                            }
+                        }
+                    }
+
+                }
+
                 long getTime = System.nanoTime() - startGet;
                 Log.d(TAG, "queue - collected frame "+frameCount +" time "+ getTime);
                 //merged = mergeBitmap(frames[0][frameCount],frames[1][frameCount],frames[2][frameCount],frames[3][frameCount]);
@@ -282,53 +312,53 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 //Rect rectangle;
                 Canvas canvTemp;
                 //post only 4 of the tiles, 1/4th of the time
-                if (true){
-                    //haritha - merge and store the bitmap
 
-                    Long renderStart = System.nanoTime();
+                //haritha - merge and store the bitmap
 
-                    //haritha - check if the first bitmap has been rendered, if not run initialization
-                    // steps for the bitmap rendering thread. if at least one frame has been rendered,
-                    // then run the update methods
-                    //merge and then display using opengl, using seperate thread
+                Long renderStart = System.nanoTime();
+
+                //haritha - check if the first bitmap has been rendered, if not run initialization
+                // steps for the bitmap rendering thread. if at least one frame has been rendered,
+                // then run the update methods
+                //merge and then display using opengl, using seperate thread
 /*
-                    try {
-                        MergedQueue.put(mergeBitmap(X,Y));
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }*/
+                try {
+                    MergedQueue.put(mergeBitmap(X,Y));
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }*/
 /*                  //merge and display on the same thread
-                    bmp = mergeBitmap(X,Y);
-                    if (!bitmapRendererInitialized){
-                        bitmapRendererThread.renderFirstBitmap(bmp);
-                        //bitmapRendererInitialized = true;
-                    }
-                    else{
-                        bitmapRendererThread.updateRenderPoster(bmp);
-                    }*/
+                bmp = mergeBitmap(X,Y);
+                if (!bitmapRendererInitialized){
+                    bitmapRendererThread.renderFirstBitmap(bmp);
+                    //bitmapRendererInitialized = true;
+                }
+                else{
+                    bitmapRendererThread.updateRenderPoster(bmp);
+                }*/
 
 
-                    //EGLPosterRenderer.render(frame[10]).recycleBitmap(true).into(mSurface);
-                    //EGLPosterRenderer.render(colorBitmap(Color.GREEN)).recycleBitmap(true).into(mSurface);
-                    //Long renderTime = System.nanoTime() - renderStart;
-                    //Log.d(TAG, "render time "+ renderTime);
-                  //post directly onto canvas
+                //EGLPosterRenderer.render(frame[10]).recycleBitmap(true).into(mSurface);
+                //EGLPosterRenderer.render(colorBitmap(Color.GREEN)).recycleBitmap(true).into(mSurface);
+                //Long renderTime = System.nanoTime() - renderStart;
+                //Log.d(TAG, "render time "+ renderTime);
+              //post directly onto canvas
 
-                    canvTemp = mSurface.lockHardwareCanvas();
-                    for (int i = 0; i < X*Y ; i++) {
-                        x = i % X;
-                        y = i / X;
-                        //Log.d(TAG, "queue - x " + x + " y " + y);
-                        canvTemp.drawBitmap(frame[i], width * x, height * y, null);
-                        frame[i].recycle();
-                    }
-                    //long postStart = System.nanoTime();
-                    long startGet2 = System.nanoTime();
-                    mSurface.unlockCanvasAndPost(canvTemp);
-                    long get2Time = System.nanoTime() - startGet2;
-                    Log.d(TAG, "haritha -draw time full "+ get2Time);
-                    //long postTime = System.nanoTime() - postStart;
-                }/*
+                canvTemp = mSurface.lockHardwareCanvas();
+                for (int i = 0; i < X*Y ; i++) {
+                    x = i % X;
+                    y = i / X;
+                    //Log.d(TAG, "queue - x " + x + " y " + y);
+                    canvTemp.drawBitmap(frame[i], width * x, height * y, null);
+                    //frame[i].recycle();
+                }
+                //long postStart = System.nanoTime();
+                long startGet2 = System.nanoTime();
+                mSurface.unlockCanvasAndPost(canvTemp);
+                long get2Time = System.nanoTime() - startGet2;
+                Log.d(TAG, "haritha -draw time full "+ get2Time);
+                //long postTime = System.nanoTime() - postStart;
+                /*
                 else{
                     for (int j =0; j <4; j++){
                         x = j % X;
@@ -357,17 +387,22 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 //merged.recycle();
                 //Log.d(TAG, "haritha - posted new canvas with width - "+mWidth+" height - "+mHeight + " time "+ postTime);
                 long totalTime = System.nanoTime() - startGet;
-                Log.d(TAG, "haritha -total time "+ totalTime);
+                Log.d(TAG, "har -total time "+ totalTime);
 
-            } finally {
-                Log.d(TAG, "Saved " + mWidth + "x" + mHeight + " frame as '" + "'");
             }
-
+            catch (Exception e){
+                Log.d(TAG, "har - exception ", e);
+            }
+            finally {
+                Log.d(TAG, "har - Saved " + mWidth + "x" + mHeight + " frame as '" + "'");
+            }
+            Log.d(TAG, "har - loop completed");
             frameCount++;
             if (frameCount == 500){
                 Long completeTime = System.nanoTime() - completeStart;
-                Log.d(TAG, "haritha - complete time "+ completeTime);
+                Log.d(TAG, "har - complete time "+ completeTime);
             }
+
         }
     }
 
@@ -436,7 +471,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         @Override
         public void run() {
             try {
-                mTest.renderFrames();
+                mTest. renderFrames();
             } catch (Throwable th) {
                 mThrowable = th;
                 Log.d(TAG, "consumer error", th);
@@ -835,7 +870,21 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                             Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_4444);
                             bmp.copyPixelsFromBuffer(mPixelBuf);
                             //Bitmap bmp = outputSurface.saveFrame();
-                            bmQueues.addFrame(bmp, frameID);
+                            boolean tilePosted = false;
+                            while (!tilePosted) {
+                                if (!frameready[frameID]) {
+                                    frameready[frameID] = true;
+                                    frame[frameID] = bmp;
+                                    tilePosted = true;
+                                    Log.d(TAG, "har - posted new tile");
+                                } else {
+                                    SystemClock.sleep(3);
+                                }
+                            }
+
+
+                            //bmQueues.addFrame(bmp, frameID);
+
                             Log.d(TAG, "queue - frame added to queue "+ decodeCount);
                             frameSaveTime += System.nanoTime() - startWhen;
                             //bmp.recycle();

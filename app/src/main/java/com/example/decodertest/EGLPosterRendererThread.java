@@ -249,6 +249,8 @@ public class EGLPosterRendererThread{
 
     private int createTexture(int target, Bitmap bitmap) {
         textures = new int[1];
+        //choose the viewport to draw
+        //GLES20.glViewport(0,0, bitmap.getWidth(), bitmap.getHeight());
         GLES20.glGenTextures(1, textures, 0);
         checkGLESError("gen texture");
         GLES20.glBindTexture(target, textures[0]);
