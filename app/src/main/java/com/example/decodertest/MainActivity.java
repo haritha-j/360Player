@@ -99,7 +99,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     private static final int Y = 4;
     private static final int TILE_COUNT = X*Y;
 
-    private static final int MAX_FRAMES = 3;       // the number of frames to hold in the buffer
+    private static final int MAX_FRAMES =3;       // the number of frames to hold in the buffer
     int mWidth;
     int mHeight;
 
@@ -209,6 +209,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 //create new blank bitmap
                 //Bitmap blank = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
                 long startGet = System.nanoTime();
+                //SystemClock.sleep(100);
+
                 frame = bmQueues.getFrame();
                 long getTime = System.nanoTime() - startGet;
                 Log.d(TAG, "queue - collected frame "+frameCount +" time "+ getTime);
@@ -286,7 +288,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             }
 
             frameCount++;
-            if (frameCount == 500){
+            if (frameCount == 100){
                 Long completeTime = System.nanoTime() - completeStart;
                 Log.d(TAG, "haritha - complete time "+ completeTime);
             }
@@ -365,6 +367,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         public static void runTest(MainActivity obj) throws Throwable {
             BMPConsumerWrapper wrapper = new BMPConsumerWrapper(obj);
             Thread th = new Thread(wrapper, "consumer test");
+            th.setPriority(10);
             th.start();
             if (wrapper.mThrowable != null) {
                 throw wrapper.mThrowable;
@@ -409,6 +412,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         public static void runTest(MainActivity obj, String mFileName, int frameID) throws Throwable {
             ExtractMpegFramesWrapper wrapper = new ExtractMpegFramesWrapper(obj, mFileName, frameID);
             Thread th = new Thread(wrapper, "codec test");
+            th.setPriority(8);
             th.start();
             //th.join();
             if (wrapper.mThrowable != null) {
@@ -628,6 +632,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
         boolean outputDone = false;
         boolean inputDone = false;
+        Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_4444);
+        ByteBuffer mPixelBuf;
         while (!outputDone) {
             if (VERBOSE) Log.d(TAG, "loop");
 
@@ -700,9 +706,12 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                     // that the texture will be available before the call returns, so we
                     // need to wait for the onFrameAvailable callback to fire.
                     decoder.releaseOutputBuffer(decoderStatus, doRender);
+                    //ByteBuffer bytes = decoder.getOutputBuffer(decoderStatus);
+                    //Log.d(TAG, "decoder buffer limit "+ bytes.limit() + " position "+ bytes.position());
                     if (doRender) {
                         if (VERBOSE) Log.d(TAG, "awaiting decode of frame " + decodeCount);
                         outputSurface.awaitNewImage();
+                        Log.d(TAG, "out surface image available");
                         //only draw one quater of frames
                         //if (!(frameID%4 == 0)){
                         if (lowFPS){
@@ -716,15 +725,18 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                             }
                         }
                         else {
+
                             outputSurface.drawImage(true);
                             long startWhen = System.nanoTime();
-                            ByteBuffer mPixelBuf = outputSurface.saveFrame();
-                            Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_4444);
+                            Long drawStart = System.nanoTime();
+                            mPixelBuf = outputSurface.saveFrame();
                             bmp.copyPixelsFromBuffer(mPixelBuf);
+                            Long drawTime = System.nanoTime() - drawStart;
                             //Bitmap bmp = outputSurface.saveFrame();
                             bmQueues.addFrame(bmp, frameID);
-                            Log.d(TAG, "queue - frame added to queue "+ decodeCount);
                             frameSaveTime += System.nanoTime() - startWhen;
+                            Long frameTime = System.nanoTime() - startWhen;
+                            Log.d(TAG, "queue - frame added to queue "+ decodeCount+ " in "+ frameTime +" draw time was "+ drawTime);
                         }
 
 
@@ -798,6 +810,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             }
             mWidth = width;
             mHeight = height;
+
             eglSetup();
             makeCurrent();
             setup();
@@ -831,6 +844,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             mPixelBuf = ByteBuffer.allocateDirect(mWidth * mHeight * 4);
             mPixelBuf.order(ByteOrder.LITTLE_ENDIAN);
             Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_4444);
+            //Log.d(TAG, "height "+mHeight + " width " + mWidth+ " buffer size "+mPixelBuf.limit());
+
 
             //buff2 = ByteBuffer.allocateDirect(mWidth * mHeight * 4);
             //buff2.order(ByteOrder.LITTLE_ENDIAN);
@@ -1037,8 +1052,6 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             //bmp.recycle();
             return mPixelBuf;
         }
-
-
         /**
          * Checks for EGL errors.
          */
