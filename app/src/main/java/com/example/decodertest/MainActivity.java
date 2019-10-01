@@ -194,6 +194,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         int frameCount = 0;
         long completeStart = System.nanoTime();
         while(true) {
+            long renderStart = System.nanoTime();
+
             //Log.d(TAG, " framecount = " + frameCount + " framecounts " + frameCounts[0] + "  " + frameCounts[1] + "  " + frameCounts[2] + "  " + frameCounts[3]);
 
             //haritha - wait for all the tiles to be ready
@@ -260,7 +262,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                     long startGet2 = System.nanoTime();
                     width = frame[0].getWidth();
                     height = frame[0].getHeight();
-                    canvTemp = mSurface.lockCanvas(null);
+                    canvTemp = mSurface.lockHardwareCanvas();
                     for (int i = 0; i < X*Y ; i++) {
                         x = i % X;
                         y = i / X;
@@ -278,15 +280,14 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                     long startGet2 = System.nanoTime();
                     width = frame[0].getWidth();
                     height = frame[0].getHeight();
-                    for (int i = 0; i < FOCUS_LENGTH; i++){
-                        x = FOCUS[i] % X;
-                        y = FOCUS[i] / X;
-                        rectangle = new Rect(width*x, height*y, width*(x+1), height*(y+1));
-                        canvTemp = mSurface.lockCanvas(rectangle);
-                        canvTemp.drawBitmap(frame[FOCUS[i]], width*x, height*y, null);
-                        mSurface.unlockCanvasAndPost(canvTemp);
-
+                    canvTemp = mSurface.lockHardwareCanvas();
+                    for (int i = 0; i < X*Y ; i++) {
+                        x = i % X;
+                        y = i / X;
+                        Log.d(TAG, "queue - x " + x + " y " + y);
+                        canvTemp.drawBitmap(frame[i], width * x, height * y, null);
                     }
+                    mSurface.unlockCanvasAndPost(canvTemp);
                     long get2Time = System.nanoTime() - startGet2;
                     Log.d(TAG, "haritha -draw time partial "+ get2Time);
 
@@ -329,6 +330,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 Long completeTime = System.nanoTime() - completeStart;
                 Log.d(TAG, "haritha - complete time "+ completeTime);
             }
+            Long renderTime = System.nanoTime() - renderStart;
+            Log.d(TAG, "time for one render cycle "+ renderTime);
         }
     }
 
@@ -571,7 +574,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             for (int i = tileCount -extraTiles + layer*extraTiles; i < tileCount + layer*extraTiles; i++) {
                 try {
                     Log.d(TAG, "queue - remaining space before " + queue[i].remainingCapacity()+ " taking from "+ i );
-                    frame[i] = queue[i].take();
+                    frame[FOCUS[j]] = queue[i].take();
                     Log.d(TAG, "queue - remaining space after " + queue[i].remainingCapacity());
                     j++;
                 } catch (InterruptedException e) {
