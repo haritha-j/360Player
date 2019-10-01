@@ -194,6 +194,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         int frameCount = 0;
         long completeStart = System.nanoTime();
         while(true) {
+            long renderStart = System.nanoTime();
+
             //Log.d(TAG, " framecount = " + frameCount + " framecounts " + frameCounts[0] + "  " + frameCounts[1] + "  " + frameCounts[2] + "  " + frameCounts[3]);
 
             //haritha - wait for all the tiles to be ready
@@ -329,6 +331,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 Long completeTime = System.nanoTime() - completeStart;
                 Log.d(TAG, "haritha - complete time "+ completeTime);
             }
+            Long renderTime = System.nanoTime() - renderStart;
+            Log.d(TAG, "time for one render cycle "+ renderTime);
         }
     }
 
