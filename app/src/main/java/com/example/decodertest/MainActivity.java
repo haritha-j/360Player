@@ -98,7 +98,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     private static final int X = 5;
     private static final int Y = 4;
     private static final int TILE_COUNT = X*Y;
-    private static final int[] FOCUS = {10,14,15,19};
+    private static final int[] FOCUS = {2,3,17,18};
     private static final int FOCUS_LENGTH = FOCUS.length;
     private static final int MAX_FRAMES =2;       // the number of frames to hold in the buffer
     private static final int MAX_CHUNKS = 16;
@@ -111,7 +111,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
     BitmapQueues bmQueues;
     Bitmap[] frame;
-    Bitmap[] intermediateFrame;
+    //Bitmap[] intermediateFrame;
 
     private SphericalVideoPlayer videoTexture;
     Bitmap merged;
@@ -163,7 +163,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
         bmQueues = new BitmapQueues(TILE_COUNT, FOCUS_LENGTH, MAX_FRAMES);
         frame = new Bitmap[TILE_COUNT];
-        intermediateFrame = new Bitmap[FOCUS_LENGTH*3];
+        //intermediateFrame = new Bitmap[FOCUS_LENGTH*3];
         //allocated = false;
 
 
@@ -228,7 +228,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                     frame = bmQueues.getFrame();
                 }
                 else{
-                    intermediateFrame = bmQueues.getTiles(layer);
+                    frame = bmQueues.getTiles(layer, frame);
                     Log.d(TAG, "load - get frame layer "+ layer + " len "+frame.length);
                 }
                 //frame = bmQueues.getFrame();
@@ -276,14 +276,14 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 }
                 else{
                     long startGet2 = System.nanoTime();
-                    width = intermediateFrame[0].getWidth();
-                    height = intermediateFrame[0].getHeight();
+                    width = frame[0].getWidth();
+                    height = frame[0].getHeight();
                     for (int i = 0; i < FOCUS_LENGTH; i++){
                         x = FOCUS[i] % X;
                         y = FOCUS[i] / X;
                         rectangle = new Rect(width*x, height*y, width*(x+1), height*(y+1));
                         canvTemp = mSurface.lockCanvas(rectangle);
-                        canvTemp.drawBitmap(intermediateFrame[i], width*x, height*y, null);
+                        canvTemp.drawBitmap(frame[FOCUS[i]], width*x, height*y, null);
                         mSurface.unlockCanvasAndPost(canvTemp);
 
                     }
@@ -566,19 +566,19 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         }
 
         //load high refresh rate tiles only
-        public Bitmap[] getTiles(int layer) {
+        public Bitmap[] getTiles(int layer, Bitmap[] frame) {
             int j = 0;
             for (int i = tileCount -extraTiles + layer*extraTiles; i < tileCount + layer*extraTiles; i++) {
                 try {
                     Log.d(TAG, "queue - remaining space before " + queue[i].remainingCapacity()+ " taking from "+ i );
-                    tileCollectionExtra[j] = queue[i].take();
+                    frame[i] = queue[i].take();
                     Log.d(TAG, "queue - remaining space after " + queue[i].remainingCapacity());
                     j++;
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
             }
-            return tileCollection;
+            return frame;
         }
     }
     /**
