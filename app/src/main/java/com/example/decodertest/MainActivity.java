@@ -600,10 +600,12 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         int saveHeight;
         int trackIndex;
         File inputFile;
+        MediaFormat format;
 
         for (int chunk_count = 0; chunk_count < MAX_CHUNKS; chunk_count++){
 
             try {
+
                 if (chunk_count == 0) {
 
                     inputFile = new File(FILES_DIR, inputFileUrl + String.format("%03d_%d.mp4", chunk_count, mLayer));   // must be an absolute path
@@ -621,7 +623,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                     }
                     extractor.selectTrack(trackIndex);
                     Log.d(TAG, "running extractor");
-                    MediaFormat format = extractor.getTrackFormat(trackIndex);
+                    format = extractor.getTrackFormat(trackIndex);
                     if (VERBOSE) {
                         Log.d(TAG, "Video size is " + format.getInteger(MediaFormat.KEY_WIDTH) + "x" +
                                 format.getInteger(MediaFormat.KEY_HEIGHT));
@@ -646,9 +648,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
                 }
                 else {
-                    decoder.stop();
+                    //decoder.stop();
                     Log.d(TAG, "load - secondary tile");
-                    Long loadStart = System.nanoTime();
                     inputFile = new File(FILES_DIR, inputFileUrl + String.format("%03d_%d.mp4", chunk_count, mLayer));   // must be an absolute path
                     // The MediaExtractor error messages aren't very useful.  Check to see if the input
                     // file exists so we can throw a better one if it's not there
@@ -663,11 +664,13 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                         throw new RuntimeException("No video track found in " + inputFile);
                     }
                     extractor.selectTrack(trackIndex);
-                    MediaFormat format = extractor.getTrackFormat(trackIndex);
-                    decoder.configure(format, outputSurface.getSurface(), null, 0);
-                    decoder.start();
+                    format = extractor.getTrackFormat(trackIndex);
+                    //decoder.configure(format, outputSurface.getSurface(), null, 0);
+                    Long loadStart = System.nanoTime();
+                    //decoder.start();
+                    decoder.flush();
                     Long loadTime = System.nanoTime() - loadStart;
-                    Log.d(TAG, "load  chunk- "+loadTime);
+                    Log.d(TAG, "load chunk- "+loadTime);
                 }
 
                 doExtract(extractor, trackIndex, decoder, outputSurface, frameID, lowFPS, mLayer, mFocusID);
