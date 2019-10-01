@@ -578,7 +578,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                     e.printStackTrace();
                 }
             }
-            return tileCollection;
+            return tileCollectionExtra;
         }
     }
     /**
