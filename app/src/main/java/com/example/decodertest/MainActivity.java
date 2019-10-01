@@ -93,13 +93,15 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
     // where to find files (note: requires WRITE_EXTERNAL_STORAGE permission)
     private static final File FILES_DIR = Environment.getExternalStorageDirectory();
-    private static final String INPUT_FILE = "ouput";
-    //private static final String INPUT_FILE = "source2.mp4";
+    private static final String TILE_DIR = "DrivingWith/frame_";
+    private static final String INPUT_FILE = "/frame_";
     private static final int X = 5;
     private static final int Y = 4;
     private static final int TILE_COUNT = X*Y;
-
-    private static final int MAX_FRAMES =3;       // the number of frames to hold in the buffer
+    private static final int[] FOCUS = {10,14,15,19};
+    private static final int FOCUS_LENGTH = FOCUS.length;
+    private static final int MAX_FRAMES =2;       // the number of frames to hold in the buffer
+    private static final int MAX_CHUNKS = 16;
     int mWidth;
     int mHeight;
 
@@ -109,6 +111,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
     BitmapQueues bmQueues;
     Bitmap[] frame;
+    Bitmap[] intermediateFrame;
 
     private SphericalVideoPlayer videoTexture;
     Bitmap merged;
@@ -158,15 +161,24 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         //frames = new Bitmap[TILE_COUNT][MAX_FRAMES];
         //frameCounts = new int[TILE_COUNT];
 
-        bmQueues = new BitmapQueues(TILE_COUNT, MAX_FRAMES);
+        bmQueues = new BitmapQueues(TILE_COUNT, FOCUS_LENGTH, MAX_FRAMES);
         frame = new Bitmap[TILE_COUNT];
+        intermediateFrame = new Bitmap[FOCUS_LENGTH*3];
         //allocated = false;
 
 
         //extractor = new ExtractMpegFramesWrapper(this);
         try {
             for (int tile = 0; tile < TILE_COUNT; tile++) {
-                ExtractMpegFramesWrapper.runTest(this, INPUT_FILE + tile + ".mp4", tile);
+                ExtractMpegFramesWrapper.runTest(this, TILE_DIR + tile + INPUT_FILE, tile, 0, 0);
+                for (int j = 0; j < FOCUS_LENGTH; j++){
+                    if (tile == FOCUS[j]) {
+                        Log.d(TAG, "focus tile "+ j + " tile " + tile);
+                        ExtractMpegFramesWrapper.runTest(this, TILE_DIR + tile + INPUT_FILE, tile, 1, j);
+                        ExtractMpegFramesWrapper.runTest(this, TILE_DIR + tile + INPUT_FILE, tile, 2, j);
+                        ExtractMpegFramesWrapper.runTest(this, TILE_DIR + tile + INPUT_FILE, tile, 3, j);
+                    }
+                }
             }
             BMPConsumerWrapper.runTest(this);
 
@@ -210,8 +222,16 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 //Bitmap blank = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
                 long startGet = System.nanoTime();
                 //SystemClock.sleep(100);
-
-                frame = bmQueues.getFrame();
+                //select whether to load all tiles or only high quality tiles
+                int layer = frameCount%4;
+                if (layer ==0){
+                    frame = bmQueues.getFrame();
+                }
+                else{
+                    intermediateFrame = bmQueues.getTiles(layer);
+                    Log.d(TAG, "load - get frame layer "+ layer + " len "+frame.length);
+                }
+                //frame = bmQueues.getFrame();
                 long getTime = System.nanoTime() - startGet;
                 Log.d(TAG, "queue - collected frame "+frameCount +" time "+ getTime);
                 //merged = mergeBitmap(frames[0][frameCount],frames[1][frameCount],frames[2][frameCount],frames[3][frameCount]);
@@ -232,14 +252,15 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
                 //haritha - can i lock the canvas here, set frameUpdated to true so that vsync will trigger 360
                 // processing and then unlock and post in the vsync thread, or should i call the 360 rendering here?
-                width = frame[0].getWidth();
-                height = frame[0].getHeight();
+
                 Rect rectangle;
                 Canvas canvTemp;
                 //post only 4 of the tiles, 1/4th of the time
-                if (true){
+                if (layer ==0){
                     long startGet2 = System.nanoTime();
-                    canvTemp = mSurface.lockHardwareCanvas();
+                    width = frame[0].getWidth();
+                    height = frame[0].getHeight();
+                    canvTemp = mSurface.lockCanvas(null);
                     for (int i = 0; i < X*Y ; i++) {
                         x = i % X;
                         y = i / X;
@@ -254,6 +275,22 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                     //long postTime = System.nanoTime() - postStart;
                 }
                 else{
+                    long startGet2 = System.nanoTime();
+                    width = intermediateFrame[0].getWidth();
+                    height = intermediateFrame[0].getHeight();
+                    for (int i = 0; i < FOCUS_LENGTH; i++){
+                        x = FOCUS[i] % X;
+                        y = FOCUS[i] / X;
+                        rectangle = new Rect(width*x, height*y, width*(x+1), height*(y+1));
+                        canvTemp = mSurface.lockCanvas(rectangle);
+                        canvTemp.drawBitmap(intermediateFrame[i], width*x, height*y, null);
+                        mSurface.unlockCanvasAndPost(canvTemp);
+
+                    }
+                    long get2Time = System.nanoTime() - startGet2;
+                    Log.d(TAG, "haritha -draw time partial "+ get2Time);
+
+                    /*
                     for (int j =0; j <4; j++){
                         x = j % X;
                         y = j / X;
@@ -268,7 +305,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                         long get2Time = System.nanoTime() - startGet2;
                         Log.d(TAG, "haritha -draw time partial "+ get2Time);
                         //long postTime = System.nanoTime() - postStart;
-                    }
+                    }*/
                 }
 
                 //after locking the canvas, post each of the tiles to the temp canvas
@@ -288,7 +325,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             }
 
             frameCount++;
-            if (frameCount == 100){
+            if (frameCount == 500){
                 Long completeTime = System.nanoTime() - completeStart;
                 Log.d(TAG, "haritha - complete time "+ completeTime);
             }
@@ -387,19 +424,23 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         private MainActivity mTest;
         private String mFileName;
         private int mFrameID;
+        private int mLayer;
+        private int mFocusID;
         private boolean lowFPS = false;
 
-        private ExtractMpegFramesWrapper(MainActivity test, String fileName, int frameID) {
+        private ExtractMpegFramesWrapper(MainActivity test, String fileName, int frameID, int layer, int focusID) {
             mTest = test;
             mFileName = fileName;
             mFrameID = frameID;
+            mLayer = layer;
+            mFocusID = focusID;
 
         }
 
         @Override
         public void run() {
             try {
-                mTest.extractMpegFrames(mFileName, mFrameID, lowFPS);
+                mTest.extractMpegFrames(mFileName, mFrameID, lowFPS, mLayer, mFocusID);
             } catch (Throwable th) {
                 Log.d(TAG, "error running extractor", th);
                 mThrowable = th;
@@ -409,8 +450,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         /**
          * Entry point.
          */
-        public static void runTest(MainActivity obj, String mFileName, int frameID) throws Throwable {
-            ExtractMpegFramesWrapper wrapper = new ExtractMpegFramesWrapper(obj, mFileName, frameID);
+        public static void runTest(MainActivity obj, String mFileName, int frameID, int layer, int focusID) throws Throwable {
+            ExtractMpegFramesWrapper wrapper = new ExtractMpegFramesWrapper(obj, mFileName, frameID, layer, focusID);
             Thread th = new Thread(wrapper, "codec test");
             th.setPriority(8);
             th.start();
@@ -473,23 +514,27 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         }
     }*/
 
-    private class BitmapQueues{
+    private class BitmapQueues {
         private ArrayBlockingQueue<Bitmap>[] queue;
         //private int[] currentFrame;
         private int tileCount;
+        private int extraTiles;
         private int frameLimit;
         private Bitmap[] tileCollection;
+        private Bitmap[] tileCollectionExtra;
 
-        private BitmapQueues(int tileCount, int frameLimit){
+        private BitmapQueues(int tileCount, int extraTiles, int frameLimit) {
             this.tileCount = tileCount;
             this.frameLimit = frameLimit;
+            this.extraTiles = extraTiles;
             tileCollection = new Bitmap[tileCount];
+            tileCollectionExtra = new Bitmap[extraTiles*3];
             //currentFrame = new int[tileCount];
 
 
-            queue = new ArrayBlockingQueue[tileCount];
+            queue = new ArrayBlockingQueue[tileCount+ extraTiles*3];
 
-            for (int j=0; j < tileCount; j++){
+            for (int j = 0; j < tileCount+ extraTiles*3; j++) {
                 queue[j] = new ArrayBlockingQueue<Bitmap>(frameLimit);
             }
             /*
@@ -498,7 +543,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             }*/
         }
 
-        public void addFrame(Bitmap bmp, int tileID){
+        public void addFrame(Bitmap bmp, int tileID) {
             try {
                 queue[tileID].put(bmp);
             } catch (InterruptedException e) {
@@ -506,12 +551,29 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             }
         }
 
-        public Bitmap[] getFrame(){
-            for (int i=0; i < tileCount; i++){
+        //load all tiles in the frame
+        public Bitmap[] getFrame() {
+            for (int i = 0; i < tileCount; i++) {
                 try {
-                    Log.d(TAG, "queue - remaining space before "+ queue[i].remainingCapacity());
+                    Log.d(TAG, "queue - remaining space before " + queue[i].remainingCapacity());
                     tileCollection[i] = queue[i].take();
-                    Log.d(TAG, "queue - remaining space after "+ queue[i].remainingCapacity());
+                    Log.d(TAG, "queue - remaining space after " + queue[i].remainingCapacity());
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            return tileCollection;
+        }
+
+        //load high refresh rate tiles only
+        public Bitmap[] getTiles(int layer) {
+            int j = 0;
+            for (int i = tileCount -extraTiles + layer*extraTiles; i < tileCount + layer*extraTiles; i++) {
+                try {
+                    Log.d(TAG, "queue - remaining space before " + queue[i].remainingCapacity()+ " taking from "+ i );
+                    tileCollectionExtra[j] = queue[i].take();
+                    Log.d(TAG, "queue - remaining space after " + queue[i].remainingCapacity());
+                    j++;
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -519,7 +581,6 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             return tileCollection;
         }
     }
-
     /**
      * Tests extraction from an MP4 to a series of PNG files.
      * <p>
@@ -528,72 +589,105 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
      * it by adjusting the GL viewport to get letterboxing or pillarboxing, but generally if
      * you're extracting frames you don't want black bars.
      */
-    private void extractMpegFrames(String inputFileUrl, int frameID, boolean lowFPS) throws IOException {
+    private void extractMpegFrames(String inputFileUrl, int frameID, boolean lowFPS, int mLayer, int mFocusID) throws IOException {
         MediaCodec decoder = null;
         CodecOutputSurface outputSurface = null;
         MediaExtractor extractor = null;
         int saveWidth;
         int saveHeight;
+        int trackIndex;
+        File inputFile;
 
-        try {
-            File inputFile = new File(FILES_DIR, inputFileUrl);   // must be an absolute path
-            // The MediaExtractor error messages aren't very useful.  Check to see if the input
-            // file exists so we can throw a better one if it's not there
+        for (int chunk_count = 0; chunk_count < MAX_CHUNKS; chunk_count++){
 
-            if (!inputFile.canRead()) {
-                throw new FileNotFoundException("Unable to read " + inputFile);
-            }
+            try {
+                if (chunk_count == 0) {
 
-            extractor = new MediaExtractor();
-            extractor.setDataSource(inputFile.toString());
-            int trackIndex = selectTrack(extractor);
-            if (trackIndex < 0) {
-                throw new RuntimeException("No video track found in " + inputFile);
-            }
-            extractor.selectTrack(trackIndex);
-            Log.d(TAG, "running extractor");
-            MediaFormat format = extractor.getTrackFormat(trackIndex);
-            if (VERBOSE) {
-                Log.d(TAG, "Video size is " + format.getInteger(MediaFormat.KEY_WIDTH) + "x" +
-                        format.getInteger(MediaFormat.KEY_HEIGHT));
-            }
-            saveWidth = format.getInteger(MediaFormat.KEY_WIDTH);
-            frameWidth = saveWidth * X;
-            saveHeight = format.getInteger(MediaFormat.KEY_HEIGHT);
-            frameHeight = saveHeight * Y;
-            // Could use width/height from the MediaFormat to get full-size frames.
-            outputSurface = new CodecOutputSurface(saveWidth, saveHeight);
+                    inputFile = new File(FILES_DIR, inputFileUrl + String.format("%03d_%d.mp4", chunk_count, mLayer));   // must be an absolute path
+                    // The MediaExtractor error messages aren't very useful.  Check to see if the input
+                    // file exists so we can throw a better one if it's not there
 
-            // Create a MediaCodec decoder, and configure it with the MediaFormat from the
-            // extractor.  It's very important to use the format from the extractor because
-            // it contains a copy of the CSD-0/CSD-1 codec-specific data chunks.
-            String mime = format.getString(MediaFormat.KEY_MIME);
-            decoder = MediaCodec.createDecoderByType(mime);
-            if (frameID==1){
-                decoder.configure(format, outputSurface.getSurface(), null, 0);
-            }else {
-                decoder.configure(format, outputSurface.getSurface(), null, 0);
-            }
-            decoder.start();
+                    if (!inputFile.canRead()) {
+                        throw new FileNotFoundException("Unable to read " + inputFile);
+                    }
+                    extractor = new MediaExtractor();
+                    extractor.setDataSource(inputFile.toString());
+                    trackIndex = selectTrack(extractor);
+                    if (trackIndex < 0) {
+                        throw new RuntimeException("No video track found in " + inputFile);
+                    }
+                    extractor.selectTrack(trackIndex);
+                    Log.d(TAG, "running extractor");
+                    MediaFormat format = extractor.getTrackFormat(trackIndex);
+                    if (VERBOSE) {
+                        Log.d(TAG, "Video size is " + format.getInteger(MediaFormat.KEY_WIDTH) + "x" +
+                                format.getInteger(MediaFormat.KEY_HEIGHT));
+                    }
+                    saveWidth = format.getInteger(MediaFormat.KEY_WIDTH);
+                    frameWidth = saveWidth * X;
+                    saveHeight = format.getInteger(MediaFormat.KEY_HEIGHT);
+                    frameHeight = saveHeight * Y;
+                    // Could use width/height from the MediaFormat to get full-size frames.
+                    outputSurface = new CodecOutputSurface(saveWidth, saveHeight);
 
+                    // Create a MediaCodec decoder, and configure it with the MediaFormat from the
+                    // extractor.  It's very important to use the format from the extractor because
+                    // it contains a copy of the CSD-0/CSD-1 codec-specific data chunks.
+                    String mime = format.getString(MediaFormat.KEY_MIME);
+                    Long loadStart = System.nanoTime();
+                    decoder = MediaCodec.createDecoderByType(mime);
+                    Long loadTime = System.nanoTime() - loadStart;
+                    Log.d(TAG, "load first chunk- "+loadTime);
+                    decoder.configure(format, outputSurface.getSurface(), null, 0);
+                    decoder.start();
 
-            doExtract(extractor, trackIndex, decoder, outputSurface, frameID, lowFPS);
-        } finally {
-            // release everything we grabbed
-            if (outputSurface != null) {
-                outputSurface.release();
-                outputSurface = null;
-            }
-            if (decoder != null) {
-                decoder.stop();
-                decoder.release();
-                decoder = null;
-            }
-            if (extractor != null) {
-                extractor.release();
-                extractor = null;
+                }
+                else {
+                    decoder.stop();
+                    Log.d(TAG, "load - secondary tile");
+                    Long loadStart = System.nanoTime();
+                    inputFile = new File(FILES_DIR, inputFileUrl + String.format("%03d_%d.mp4", chunk_count, mLayer));   // must be an absolute path
+                    // The MediaExtractor error messages aren't very useful.  Check to see if the input
+                    // file exists so we can throw a better one if it's not there
+
+                    if (!inputFile.canRead()) {
+                        throw new FileNotFoundException("Unable to read " + inputFile);
+                    }
+                    extractor = new MediaExtractor();
+                    extractor.setDataSource(inputFile.toString());
+                    trackIndex = selectTrack(extractor);
+                    if (trackIndex < 0) {
+                        throw new RuntimeException("No video track found in " + inputFile);
+                    }
+                    extractor.selectTrack(trackIndex);
+                    MediaFormat format = extractor.getTrackFormat(trackIndex);
+                    decoder.configure(format, outputSurface.getSurface(), null, 0);
+                    decoder.start();
+                    Long loadTime = System.nanoTime() - loadStart;
+                    Log.d(TAG, "load  chunk- "+loadTime);
+                }
+
+                doExtract(extractor, trackIndex, decoder, outputSurface, frameID, lowFPS, mLayer, mFocusID);
+            } finally {
+                if (chunk_count == 49) {
+                    // release everything we grabbed
+                    if (outputSurface != null) {
+                        outputSurface.release();
+                        outputSurface = null;
+                    }
+                    if (decoder != null) {
+                        decoder.stop();
+                        decoder.release();
+                        decoder = null;
+                    }
+                    if (extractor != null) {
+                        extractor.release();
+                        extractor = null;
+                    }
+                }
             }
         }
+
     }
 
     /**
@@ -622,7 +716,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
      * Work loop.
      */
     private void doExtract(MediaExtractor extractor, int trackIndex, MediaCodec decoder,
-                           CodecOutputSurface outputSurface, int frameID, boolean lowFPS) throws IOException {
+                           CodecOutputSurface outputSurface, int frameID, boolean lowFPS, int layer, int focusID) throws IOException {
         final int TIMEOUT_USEC = 2000;
         ByteBuffer[] decoderInputBuffers = decoder.getInputBuffers();
         MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
@@ -633,7 +727,9 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         boolean outputDone = false;
         boolean inputDone = false;
         Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_4444);
-        ByteBuffer mPixelBuf;
+        ByteBuffer mPixelBuf = ByteBuffer.allocateDirect(mWidth*mHeight*4);
+        mPixelBuf.order(ByteOrder.LITTLE_ENDIAN);
+
         while (!outputDone) {
             if (VERBOSE) Log.d(TAG, "loop");
 
@@ -729,14 +825,20 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                             outputSurface.drawImage(true);
                             long startWhen = System.nanoTime();
                             Long drawStart = System.nanoTime();
-                            mPixelBuf = outputSurface.saveFrame();
+                            outputSurface.saveFrame(mPixelBuf);
                             bmp.copyPixelsFromBuffer(mPixelBuf);
                             Long drawTime = System.nanoTime() - drawStart;
                             //Bitmap bmp = outputSurface.saveFrame();
-                            bmQueues.addFrame(bmp, frameID);
+                            if (layer ==0) {
+                                bmQueues.addFrame(bmp, frameID);
+                            }
+                            else {
+                                Log.d(TAG, " intermediate tile id "+ (TILE_COUNT-FOCUS_LENGTH + focusID+layer*FOCUS_LENGTH) + " layer "+layer);
+                                bmQueues.addFrame(bmp, TILE_COUNT-FOCUS_LENGTH + focusID+layer*FOCUS_LENGTH);
+                            }
                             frameSaveTime += System.nanoTime() - startWhen;
                             Long frameTime = System.nanoTime() - startWhen;
-                            Log.d(TAG, "queue - frame added to queue "+ decodeCount+ " in "+ frameTime +" draw time was "+ drawTime);
+                            //Log.d(TAG, "queue - frame added to queue "+ decodeCount+ " in "+ frameTime +" draw time was "+ drawTime);
                         }
 
 
@@ -1005,7 +1107,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         /**
          * Saves the current frame to disk as a PNG image.
          */
-        public ByteBuffer saveFrame() throws IOException {
+        public void saveFrame(ByteBuffer buff) throws IOException {
             // glReadPixels gives us a ByteBuffer filled with what is essentially big-endian RGBA
             // data (i.e. a byte of red, followed by a byte of green...).  To use the Bitmap
             // constructor that takes an int[] array with pixel data, we need an int[] filled
@@ -1038,9 +1140,9 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             // allocated ahead of time if possible.  We still get some allocations from the
             // Bitmap / PNG creation.
 
-            mPixelBuf.rewind();
+            buff.rewind();
             GLES20.glReadPixels(0, 0, mWidth, mHeight, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE,
-                    mPixelBuf);
+                    buff);
             //byte[] pixelBytes = mPixelBuf.array();
             //byte[] pixelBytes2 = buff2.array();
             //byte[] combinedArray = new byte[pixelBytes.length + pixelBytes2.length];
@@ -1050,7 +1152,6 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
             //mPixelBuf.rewind();
             //bmp.recycle();
-            return mPixelBuf;
         }
         /**
          * Checks for EGL errors.
