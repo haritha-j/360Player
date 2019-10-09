@@ -38,10 +38,14 @@ import android.opengl.Matrix;
 import android.os.Bundle;
 import android.os.Environment;
 //import android.test.AndroidTestCase;
+import android.os.Handler;
+import android.os.HandlerThread;
+import android.os.Message;
 import android.os.SystemClock;
 import android.renderscript.Allocation;
 import android.renderscript.RenderScript;
 import android.util.Log;
+import android.view.Choreographer;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
@@ -110,7 +114,6 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     //int[] frameCounts;
 
     BitmapQueues bmQueues;
-    Bitmap[] frame;
     //Bitmap[] intermediateFrame;
 
     private SphericalVideoPlayer videoTexture;
@@ -156,13 +159,14 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         textureAvailable = false;
         frameAvailable = true;
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        BMPConsumerThread consumer = new BMPConsumerThread("consumer", this);
+
 
 
         //frames = new Bitmap[TILE_COUNT][MAX_FRAMES];
         //frameCounts = new int[TILE_COUNT];
 
         bmQueues = new BitmapQueues(TILE_COUNT, FOCUS_LENGTH, MAX_FRAMES);
-        frame = new Bitmap[TILE_COUNT];
         //intermediateFrame = new Bitmap[FOCUS_LENGTH*3];
         //allocated = false;
 
@@ -180,7 +184,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                     }
                 }
             }
-            BMPConsumerWrapper.runTest(this);
+            consumer.start();
 
             //Log.d(TAG, "running extractor");
         } catch (Throwable throwable) {
@@ -190,150 +194,6 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     }
 
 
-    private void consumeBMPs() {
-        int frameCount = 0;
-        long completeStart = System.nanoTime();
-        while(true) {
-            long renderStart = System.nanoTime();
-
-            //Log.d(TAG, " framecount = " + frameCount + " framecounts " + frameCounts[0] + "  " + frameCounts[1] + "  " + frameCounts[2] + "  " + frameCounts[3]);
-
-            //haritha - wait for all the tiles to be ready
-            /*
-            for (int tile = 0; tile<TILE_COUNT; tile++){
-                while (frameCounts[tile] <=frameCount){
-                    Log.d(TAG, " awaiting new frame to consume");
-                    SystemClock.sleep(20);
-                }
-            }*/
-            //while ((frameCounts <= frameCount) || (frame2Count <= frameCount)) {
-            //    SystemClock.sleep(20);
-            //}
-            Log.d(TAG, "Frame available on BMP arrays");
-            //BufferedOutputStream bos = null;
-            //File outputFile = new File(FILES_DIR,
-            //       String.format("pics/frame-%02d.png", frameCount));
-            //String filename = outputFile.toString();
-            try {
-                //bos = new BufferedOutputStream(new FileOutputStream(filename));
-                //Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
-                //mPixelBuf.rewind();
-                //bmp.copyPixelsFromBuffer(mPixelBuf);
-
-                //create new blank bitmap
-                //Bitmap blank = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
-                long startGet = System.nanoTime();
-                //SystemClock.sleep(100);
-                //select whether to load all tiles or only high quality tiles
-                int layer = frameCount%4;
-                if (layer ==0){
-                    frame = bmQueues.getFrame();
-                }
-                else{
-                    frame = bmQueues.getTiles(layer, frame);
-                    Log.d(TAG, "load - get frame layer "+ layer + " len "+frame.length);
-                }
-                //frame = bmQueues.getFrame();
-                long getTime = System.nanoTime() - startGet;
-                Log.d(TAG, "queue - collected frame "+frameCount +" time "+ getTime);
-                //merged = mergeBitmap(frames[0][frameCount],frames[1][frameCount],frames[2][frameCount],frames[3][frameCount]);
-                //mergeBitmap(X,Y);
-                //merged.compress(Bitmap.CompressFormat.PNG, 90, bos);
-
-
-/*
-                if (!allocated){
-                    rs = RenderScript.create(this, RenderScript.ContextType.NORMAL);
-                    al = Allocation.createFromBitmap(rs, merged);
-                    al.setSurface(mSurface);
-                    allocated = true;
-                }else{
-                    al.copyFrom(merged);
-                }
-                */
-
-                //haritha - can i lock the canvas here, set frameUpdated to true so that vsync will trigger 360
-                // processing and then unlock and post in the vsync thread, or should i call the 360 rendering here?
-
-                Rect rectangle;
-                Canvas canvTemp;
-                //post only 4 of the tiles, 1/4th of the time
-                if (layer ==0){
-                    long startGet2 = System.nanoTime();
-                    width = frame[0].getWidth();
-                    height = frame[0].getHeight();
-                    canvTemp = mSurface.lockHardwareCanvas();
-                    for (int i = 0; i < X*Y ; i++) {
-                        x = i % X;
-                        y = i / X;
-                        Log.d(TAG, "queue - x " + x + " y " + y);
-                        canvTemp.drawBitmap(frame[i], width * x, height * y, null);
-                    }
-                    //long postStart = System.nanoTime();
-
-                    mSurface.unlockCanvasAndPost(canvTemp);
-                    long get2Time = System.nanoTime() - startGet2;
-                    Log.d(TAG, "haritha -draw time full "+ get2Time);
-                    //long postTime = System.nanoTime() - postStart;
-                }
-                else{
-                    long startGet2 = System.nanoTime();
-                    width = frame[0].getWidth();
-                    height = frame[0].getHeight();
-                    canvTemp = mSurface.lockHardwareCanvas();
-                    for (int i = 0; i < X*Y ; i++) {
-                        x = i % X;
-                        y = i / X;
-                        Log.d(TAG, "queue - x " + x + " y " + y);
-                        canvTemp.drawBitmap(frame[i], width * x, height * y, null);
-                    }
-                    mSurface.unlockCanvasAndPost(canvTemp);
-                    long get2Time = System.nanoTime() - startGet2;
-                    Log.d(TAG, "haritha -draw time partial "+ get2Time);
-
-                    /*
-                    for (int j =0; j <4; j++){
-                        x = j % X;
-                        y = j / X;
-                        long startGet2 = System.nanoTime();
-                        rectangle = new Rect(width*x,height*y, width*(x+1), height*(x+1));
-                        canvTemp = mSurface.lockHardwareCanvas();
-                        Log.d(TAG, "queue - x " + x + " y " + y);
-                        canvTemp.drawBitmap(frame[j], width * x, height * y, null);
-                        //long postStart = System.nanoTime();
-
-                        mSurface.unlockCanvasAndPost(canvTemp);
-                        long get2Time = System.nanoTime() - startGet2;
-                        Log.d(TAG, "haritha -draw time partial "+ get2Time);
-                        //long postTime = System.nanoTime() - postStart;
-                    }*/
-                }
-
-                //after locking the canvas, post each of the tiles to the temp canvas
-
-                //canvTemp.drawBitmap(merged, 0, 0, null);
-                //frameAvailable = true;
-
-
-                //SystemClock.sleep(10);
-                //merged.recycle();
-                //Log.d(TAG, "haritha - posted new canvas with width - "+mWidth+" height - "+mHeight + " time "+ postTime);
-                long totalTime = System.nanoTime() - startGet;
-                Log.d(TAG, "haritha -total time "+ totalTime);
-
-            } finally {
-                Log.d(TAG, "Saved " + mWidth + "x" + mHeight + " frame as '" + "'");
-            }
-
-            frameCount++;
-            if (frameCount == 500){
-                Long completeTime = System.nanoTime() - completeStart;
-                Log.d(TAG, "haritha - complete time "+ completeTime);
-            }
-            Long renderTime = System.nanoTime() - renderStart;
-            Log.d(TAG, "time for one render cycle "+ renderTime);
-        }
-    }
 
     @Override
     public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int i, int i1) {
@@ -386,24 +246,53 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     }
 
     //haritha - consumer thread to save bitmaps produced by the decoder threads
-    private static class BMPConsumerWrapper implements Runnable {
-        private MainActivity mTest;
-        private Throwable mThrowable;
+    private class BMPConsumerThread extends HandlerThread {
+        private Handler handler;
+        private Choreographer.FrameCallback frameCallback = new ChoreographerCallback();
+        private static final int MSG_VSYNC = 0x9;
+        int frameCount;
+        MainActivity main;
+        Bitmap[] frame;
+        int frameHeight;
+        int frameWidth;
+        int width, height;
+        int y,x;
 
-        private BMPConsumerWrapper(MainActivity test) {
-            mTest = test;
+        public BMPConsumerThread(String name, MainActivity main) {
+            super(name);
+            this.main = main;
+            frame = new Bitmap[TILE_COUNT];
+            frameCount = 0;
+
         }
 
-        @Override
-        public void run() {
-            try {
-                mTest.consumeBMPs();
-            } catch (Throwable th) {
-                mThrowable = th;
-                Log.d(TAG, "consumer error", th);
+        //choregrapher for 60fps sync
+        private class ChoreographerCallback implements Choreographer.FrameCallback {
+            @Override
+            public void doFrame(long frameTimeNanos) {
+                Log.d(TAG, "haritha - Vsync msg sent");
+                handler.sendEmptyMessage(MSG_VSYNC);
             }
         }
 
+
+        @Override
+        public synchronized void start() {
+            super.start();
+            handler = new Handler(getLooper()) {
+                @Override
+                public void handleMessage(Message msg) {
+                    switch (msg.what) {
+                        case MSG_VSYNC:
+                            Log.d(TAG, "haritha - vsync sent");
+                            frameCount++;
+                            consumeBMPs(frameCount);
+                            break;
+                    }
+                }
+            };
+        }
+        /*
         public static void runTest(MainActivity obj) throws Throwable {
             BMPConsumerWrapper wrapper = new BMPConsumerWrapper(obj);
             Thread th = new Thread(wrapper, "consumer test");
@@ -411,6 +300,140 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             th.start();
             if (wrapper.mThrowable != null) {
                 throw wrapper.mThrowable;
+            }
+        }*/
+
+
+        private void consumeBMPs(int frameCount) {
+
+            Choreographer.getInstance().postFrameCallback(frameCallback);
+            long renderStart = System.nanoTime();
+
+            //Log.d(TAG, " framecount = " + frameCount + " framecounts " + frameCounts[0] + "  " + frameCounts[1] + "  " + frameCounts[2] + "  " + frameCounts[3]);
+
+            //haritha - wait for all the tiles to be ready
+        /*
+        for (int tile = 0; tile<TILE_COUNT; tile++){
+            while (frameCounts[tile] <=frameCount){
+                Log.d(TAG, " awaiting new frame to consume");
+                SystemClock.sleep(20);
+            }
+        }*/
+            //while ((frameCounts <= frameCount) || (frame2Count <= frameCount)) {
+            //    SystemClock.sleep(20);
+            //}
+            Log.d(TAG, "Frame available on BMP arrays");
+            //BufferedOutputStream bos = null;
+            //File outputFile = new File(FILES_DIR,
+            //       String.format("pics/frame-%02d.png", frameCount));
+            //String filename = outputFile.toString();
+            try {
+                //bos = new BufferedOutputStream(new FileOutputStream(filename));
+                //Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
+                //mPixelBuf.rewind();
+                //bmp.copyPixelsFromBuffer(mPixelBuf);
+
+                //create new blank bitmap
+                //Bitmap blank = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
+                long startGet = System.nanoTime();
+                //SystemClock.sleep(100);
+                //select whether to load all tiles or only high quality tiles
+                int layer = frameCount % 4;
+                if (layer == 0) {
+                    frame = main.bmQueues.getFrame();
+                } else {
+                    frame = main.bmQueues.getTiles(layer, frame);
+                    Log.d(TAG, "load - get frame layer " + layer + " len " + frame.length);
+                }
+                //frame = bmQueues.getFrame();
+                long getTime = System.nanoTime() - startGet;
+                Log.d(TAG, "queue - collected frame " + frameCount + " time " + getTime);
+                //merged = mergeBitmap(frames[0][frameCount],frames[1][frameCount],frames[2][frameCount],frames[3][frameCount]);
+                //mergeBitmap(X,Y);
+                //merged.compress(Bitmap.CompressFormat.PNG, 90, bos);
+
+
+/*
+            if (!allocated){
+                rs = RenderScript.create(this, RenderScript.ContextType.NORMAL);
+                al = Allocation.createFromBitmap(rs, merged);
+                al.setSurface(mSurface);
+                allocated = true;
+            }else{
+                al.copyFrom(merged);
+            }
+            */
+
+                //haritha - can i lock the canvas here, set frameUpdated to true so that vsync will trigger 360
+                // processing and then unlock and post in the vsync thread, or should i call the 360 rendering here?
+
+                Rect rectangle;
+                Canvas canvTemp;
+                //post only 4 of the tiles, 1/4th of the time
+                if (layer == 0) {
+                    long startGet2 = System.nanoTime();
+                    width = frame[0].getWidth();
+                    height = frame[0].getHeight();
+                    canvTemp = main.mSurface.lockHardwareCanvas();
+                    for (int i = 0; i < X * Y; i++) {
+                        x = i % X;
+                        y = i / X;
+                        Log.d(TAG, "queue - x " + x + " y " + y);
+                        canvTemp.drawBitmap(frame[i], width * x, height * y, null);
+                    }
+                    //long postStart = System.nanoTime();
+
+                    main.mSurface.unlockCanvasAndPost(canvTemp);
+                    long get2Time = System.nanoTime() - startGet2;
+                    Log.d(TAG, "haritha -draw time full " + get2Time);
+                    //long postTime = System.nanoTime() - postStart;
+                } else {
+                    long startGet2 = System.nanoTime();
+                    width = frame[0].getWidth();
+                    height = frame[0].getHeight();
+                    canvTemp = main.mSurface.lockHardwareCanvas();
+                    for (int i = 0; i < X * Y; i++) {
+                        x = i % X;
+                        y = i / X;
+                        Log.d(TAG, "queue - x " + x + " y " + y);
+                        canvTemp.drawBitmap(frame[i], width * x, height * y, null);
+                    }
+                    main.mSurface.unlockCanvasAndPost(canvTemp);
+                    long get2Time = System.nanoTime() - startGet2;
+                    Log.d(TAG, "haritha -draw time partial " + get2Time);
+
+                /*
+                for (int j =0; j <4; j++){
+                    x = j % X;
+                    y = j / X;
+                    long startGet2 = System.nanoTime();
+                    rectangle = new Rect(width*x,height*y, width*(x+1), height*(x+1));
+                    canvTemp = mSurface.lockHardwareCanvas();
+                    Log.d(TAG, "queue - x " + x + " y " + y);
+                    canvTemp.drawBitmap(frame[j], width * x, height * y, null);
+                    //long postStart = System.nanoTime();
+
+                    mSurface.unlockCanvasAndPost(canvTemp);
+                    long get2Time = System.nanoTime() - startGet2;
+                    Log.d(TAG, "haritha -draw time partial "+ get2Time);
+                    //long postTime = System.nanoTime() - postStart;
+                }*/
+                }
+
+                //after locking the canvas, post each of the tiles to the temp canvas
+
+                //canvTemp.drawBitmap(merged, 0, 0, null);
+                //frameAvailable = true;
+
+
+                //SystemClock.sleep(10);
+                //merged.recycle();
+                //Log.d(TAG, "haritha - posted new canvas with width - "+mWidth+" height - "+mHeight + " time "+ postTime);
+                long totalTime = System.nanoTime() - startGet;
+                Log.d(TAG, "haritha -total time " + totalTime);
+
+            } finally {
+                Log.d(TAG, "Saved " + width + "x" + height + " frame as '" + "'");
             }
         }
     }
@@ -1403,7 +1426,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         comboImage.drawBitmap(t4, t3.getWidth(), t2.getHeight(), null);
         return comboBitmap;
     }
-
+/*
     public void mergeBitmap(int X, int Y){
         long startMerge = System.nanoTime();
         int width, height;
@@ -1421,7 +1444,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         long endMerge = System.nanoTime() - startMerge;
         Log.d(TAG, "merge time "+ endMerge);
     }
-
+*/
 
 
 

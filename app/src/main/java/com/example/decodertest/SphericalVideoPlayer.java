@@ -424,7 +424,6 @@ public class SphericalVideoPlayer extends TextureView implements SensorEventList
         private class ChoreographerCallback implements Choreographer.FrameCallback {
             @Override
             public void doFrame(long frameTimeNanos) {
-                Log.d(TAG, "haritha - Vsync msg sent");
                 handler.sendEmptyMessage(MSG_VSYNC);
             }
         }
