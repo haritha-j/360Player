@@ -526,7 +526,7 @@ public class SphericalVideoPlayer extends TextureView implements SensorEventList
             if (!eglRenderTarget.hasValidContext()) {
                 return;
             }
-            Log.d(TAG, "haritha - vsync triggered");
+            Log.d(TAG, "sync - vsync triggered");
             Choreographer.getInstance().postFrameCallback(frameCallback);
             Log.d(TAG, "haritha - frameAvailable is "+frameAvailable + " and cameraupdate is "+ pendingCameraUpdate);
 

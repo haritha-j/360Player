@@ -98,10 +98,11 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     private static final int X = 5;
     private static final int Y = 4;
     private static final int TILE_COUNT = X*Y;
-    private static final int[] FOCUS = {2,3,17,18};
+    private static final int[] FOCUS = {12,13,7,8};
     private static final int FOCUS_LENGTH = FOCUS.length;
-    private static final int MAX_FRAMES =2;       // the number of frames to hold in the buffer
-    private static final int MAX_CHUNKS = 16;
+    private static final int MAX_FRAMES =10;       // the number of frames to hold in the buffer
+    private static final int MAX_CHUNKS = 50;
+    private static final int WAIT_TIME = 20;
     int mWidth;
     int mHeight;
 
@@ -193,6 +194,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     private void consumeBMPs() {
         int frameCount = 0;
         long completeStart = System.nanoTime();
+        long startTime = System.nanoTime();
         while(true) {
             long renderStart = System.nanoTime();
 
@@ -214,6 +216,10 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             //File outputFile = new File(FILES_DIR,
             //       String.format("pics/frame-%02d.png", frameCount));
             //String filename = outputFile.toString();
+            /*while (System.nanoTime() - startTime < WAIT_TIME *1000000){
+                SystemClock.sleep(5);
+            }
+            startTime = System.nanoTime();*/
             try {
                 //bos = new BufferedOutputStream(new FileOutputStream(filename));
                 //Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
@@ -290,6 +296,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                     mSurface.unlockCanvasAndPost(canvTemp);
                     long get2Time = System.nanoTime() - startGet2;
                     Log.d(TAG, "haritha -draw time partial "+ get2Time);
+                    Log.d(TAG, "sync - rendered new frame");
 
                     /*
                     for (int j =0; j <4; j++){
