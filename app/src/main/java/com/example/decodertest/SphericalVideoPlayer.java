@@ -77,6 +77,7 @@ public class SphericalVideoPlayer extends TextureView implements SensorEventList
     private final float[] mRotationMatrix = new float[16];
     private long setPosition=0;
     private Surface mSurface;
+    MainActivity parent;
 
 
     @Override
@@ -273,7 +274,8 @@ public class SphericalVideoPlayer extends TextureView implements SensorEventList
         });
     }
 
-    public Surface initRenderThread(SurfaceTexture surface, int width, int height, long currentPosition, int frameHeight, int frameWidth) {
+    public Surface initRenderThread(SurfaceTexture surface, int width, int height, long currentPosition, int frameHeight, int frameWidth, MainActivity main) {
+        parent = main;
         setPosition = currentPosition;
         renderThread = new RenderThread(RENDER_THREAD_NAME);
         renderThread.start();
@@ -526,6 +528,7 @@ public class SphericalVideoPlayer extends TextureView implements SensorEventList
             if (!eglRenderTarget.hasValidContext()) {
                 return;
             }
+
             Log.d(TAG, "sync - vsync triggered");
             Choreographer.getInstance().postFrameCallback(frameCallback);
             Log.d(TAG, "haritha - frameAvailable is "+frameAvailable + " and cameraupdate is "+ pendingCameraUpdate);
@@ -563,6 +566,7 @@ public class SphericalVideoPlayer extends TextureView implements SensorEventList
             if (pendingCameraUpdate) {
                 pendingCameraUpdate = false;
             }
+            parent.setRender();
         }
 
         private void updateCamera() {

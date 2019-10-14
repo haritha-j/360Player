@@ -98,11 +98,12 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     private static final int X = 5;
     private static final int Y = 4;
     private static final int TILE_COUNT = X*Y;
-    private static final int[] FOCUS = {12,13,7,8};
+    private static final int[] FOCUS = {13};
     private static final int FOCUS_LENGTH = FOCUS.length;
-    private static final int MAX_FRAMES =10;       // the number of frames to hold in the buffer
+    private static final int MAX_FRAMES =1;       // the number of frames to hold in the buffer
     private static final int MAX_CHUNKS = 50;
     private static final int WAIT_TIME = 20;
+    boolean rendered = true;
     int mWidth;
     int mHeight;
 
@@ -190,6 +191,10 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         videoTexture.setVisibility(View.VISIBLE);
     }
 
+    public void setRender(){
+        rendered = true;
+    }
+
 
     private void consumeBMPs() {
         int frameCount = 0;
@@ -220,6 +225,11 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 SystemClock.sleep(5);
             }
             startTime = System.nanoTime();*/
+
+            while (!rendered){
+                Log.d(TAG, "sync waiting to render");
+                SystemClock.sleep(5);
+            }
             try {
                 //bos = new BufferedOutputStream(new FileOutputStream(filename));
                 //Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
@@ -297,7 +307,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                     long get2Time = System.nanoTime() - startGet2;
                     Log.d(TAG, "haritha -draw time partial "+ get2Time);
                     Log.d(TAG, "sync - rendered new frame");
-
+                    rendered = false;
                     /*
                     for (int j =0; j <4; j++){
                         x = j % X;
@@ -346,7 +356,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int i, int i1) {
         textureAvailable = true;
 
-        mSurface = videoTexture.initRenderThread(surfaceTexture, i, i1, setPosition, frameHeight, frameWidth);
+        mSurface = videoTexture.initRenderThread(surfaceTexture, i, i1, setPosition, frameHeight, frameWidth, this);
 /*
         Bitmap temp = Bitmap.createBitmap(i, i1, Bitmap.Config.ARGB_8888);
         //Rect rect = new Rect(0,0,100,100);
@@ -809,7 +819,6 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                     }
 
                     boolean doRender = (info.size != 0);
-
                     // As soon as we call releaseOutputBuffer, the buffer will be forwarded
                     // to SurfaceTexture to convert to a texture.  The API doesn't guarantee
                     // that the texture will be available before the call returns, so we
@@ -823,13 +832,13 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                         Log.d(TAG, "out surface image available");
                         //only draw one quater of frames
                         //if (!(frameID%4 == 0)){
-                        if (lowFPS){
+                        if (false){
                             if (decodeCount%4==0){
                                 outputSurface.drawImage(true);
                                 long startWhen = System.nanoTime();
                                 //Bitmap bmp = outputSurface.saveFrame();
                                 //bmQueues.addFrame(bmp, frameID);
-                                Log.d(TAG, "queue - frame added to queue "+ decodeCount);
+                                //Log.d(TAG, "sync - frame added to queue "+ decodeCount + " tile "+ frameID);
                                 frameSaveTime += System.nanoTime() - startWhen;
                             }
                         }
@@ -869,6 +878,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
                         //frameCounts[frameID]++;
                         //Log.d(TAG, "Added frame to buffer, framecount1 " + frame1Count + " framecount2 " + frame2Count);
+                        //Log.d(TAG, "sync - frame added to queue "+ decodeCount + " tile "+ frameID);
 
 
                         decodeCount++;
