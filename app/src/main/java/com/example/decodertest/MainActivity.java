@@ -63,6 +63,7 @@ import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import java.util.Arrays;
 import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingDeque;
@@ -113,6 +114,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
     BitmapQueues bmQueues;
     Bitmap[] frame;
+    Bitmap[] tileArray;
+    boolean[] drawn;
     //Bitmap[] intermediateFrame;
 
     private SphericalVideoPlayer videoTexture;
@@ -164,6 +167,11 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         //frameCounts = new int[TILE_COUNT];
 
         bmQueues = new BitmapQueues(TILE_COUNT, FOCUS_LENGTH, MAX_FRAMES);
+        tileArray = new Bitmap[TILE_COUNT + 3];
+        drawn = new boolean[TILE_COUNT + 3];
+        for (int j = 0; j < TILE_COUNT + 3; j++){
+            drawn[j] = true;
+        }
         frame = new Bitmap[TILE_COUNT];
         //intermediateFrame = new Bitmap[FOCUS_LENGTH*3];
         //allocated = false;
@@ -243,11 +251,29 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 //select whether to load all tiles or only high quality tiles
                 int layer = frameCount%4;
                 if (layer ==0){
-                    frame = bmQueues.getFrame();
+                    //frame = bmQueues.getFrame();
+                    for (int l = 0; l < TILE_COUNT; l++){
+                        while(drawn[l]){
+                            SystemClock.sleep(5);
+                        }
+                    }
+                    frame = Arrays.copyOfRange(tileArray, 0, TILE_COUNT);
+
+                    for (int k = 0; k < TILE_COUNT; k++){
+                        drawn[k] = true;
+                    }
+                    Log.d(TAG, "waiting done, frame drawn");
                 }
                 else{
-                    frame = bmQueues.getTiles(layer, frame);
+                    while(drawn[13]){
+                        SystemClock.sleep(5);
+                    }
+                    frame[13] = tileArray[TILE_COUNT -1 + layer];
+                    //frame = bmQueues.getTiles(layer, frame);
+                    drawn[TILE_COUNT -1 + layer] = true;
                     Log.d(TAG, "load - get frame layer "+ layer + " len "+frame.length);
+                    Log.d(TAG, "waiting done, extra frame drawn");
+
                 }
                 //frame = bmQueues.getFrame();
                 long getTime = System.nanoTime() - startGet;
@@ -852,11 +878,25 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                             Long drawTime = System.nanoTime() - drawStart;
                             //Bitmap bmp = outputSurface.saveFrame();
                             if (layer ==0) {
-                                bmQueues.addFrame(bmp, frameID);
+                                while ( !drawn[frameID]){
+                                    Log.d(TAG, "waiting to draw frame");
+                                    SystemClock.sleep(5);
+                                }
+                                tileArray[frameID] = bmp;
+                                drawn[frameID] = false;
+                                Log.d (TAG, "tile id " + frameID + " waiting done");
+                                //bmQueues.addFrame(bmp, frameID);
                             }
                             else {
-                                Log.d(TAG, " intermediate tile id "+ (TILE_COUNT-FOCUS_LENGTH + focusID+layer*FOCUS_LENGTH) + " layer "+layer);
-                                bmQueues.addFrame(bmp, TILE_COUNT-FOCUS_LENGTH + focusID+layer*FOCUS_LENGTH);
+                                Log.d(TAG, "waiting done,  intermediate tile id "+ (TILE_COUNT-1 + layer) + " layer "+layer);
+                                //bmQueues.addFrame(bmp, TILE_COUNT-FOCUS_LENGTH + focusID+layer*FOCUS_LENGTH);
+                                while (!drawn[TILE_COUNT-1+layer]){
+                                    SystemClock.sleep(5);
+                                    Log.d(TAG, "waiting to draw extra frame");
+
+                                }
+                                tileArray[TILE_COUNT-1+layer] = bmp;
+                                drawn[TILE_COUNT-1+layer] = false;
                             }
                             frameSaveTime += System.nanoTime() - startWhen;
                             Long frameTime = System.nanoTime() - startWhen;
