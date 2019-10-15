@@ -93,14 +93,14 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
     // where to find files (note: requires WRITE_EXTERNAL_STORAGE permission)
     private static final File FILES_DIR = Environment.getExternalStorageDirectory();
-    private static final String TILE_DIR = "DrivingWith/frame_";
+    private static final String TILE_DIR = "DrivingWith_24fps_4Layers_pts_changed/frame_";
     private static final String INPUT_FILE = "/frame_";
     private static final int X = 5;
     private static final int Y = 4;
     private static final int TILE_COUNT = X*Y;
     private static final int[] FOCUS = {12,13,7,8};
     private static final int FOCUS_LENGTH = FOCUS.length;
-    private static final int MAX_FRAMES =10;       // the number of frames to hold in the buffer
+    private static final int MAX_FRAMES =1;       // the number of frames to hold in the buffer
     private static final int MAX_CHUNKS = 50;
     private static final int WAIT_TIME = 20;
     int mWidth;
