@@ -859,9 +859,9 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                             long startWhen = System.nanoTime();
                             Long drawStart = System.nanoTime();
                             File outputFile = new File(FILES_DIR,
-                                    String.format("frames/tframe-%02d_%03d.png",frameID, frameCount+decodeCount));
+                                    String.format("frames2/tframe-%02d_%03d.png",frameID, frameCount+decodeCount));
                             outputSurface.saveFrame(mPixelBuf, outputFile.toString());
-                            /*bmp.copyPixelsFromBuffer(mPixelBuf);
+                            bmp.copyPixelsFromBuffer(mPixelBuf);
                             Long drawTime = System.nanoTime() - drawStart;
                             //Bitmap bmp = outputSurface.saveFrame();
 
@@ -871,7 +871,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                             else {
                                 Log.d(TAG, " intermediate tile id "+ (TILE_COUNT-FOCUS_LENGTH + focusID+layer*FOCUS_LENGTH) + " layer "+layer);
                                 bmQueues.addFrame(bmp, TILE_COUNT-FOCUS_LENGTH + focusID+layer*FOCUS_LENGTH);
-                            }*/
+                            }
                             frameSaveTime += System.nanoTime() - startWhen;
                             Long frameTime = System.nanoTime() - startWhen;
                             //Log.d(TAG, "queue - frame added to queue "+ decodeCount+ " in "+ frameTime +" draw time was "+ drawTime);
@@ -1181,7 +1181,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             buff.rewind();
             GLES20.glReadPixels(0, 0, mWidth, mHeight, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE,
                     buff);
-
+/*
             BufferedOutputStream bos = null;
             try {
                 bos = new BufferedOutputStream(new FileOutputStream(filename));
@@ -1195,7 +1195,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             }
             if (VERBOSE) {
                 Log.d(TAG, "Saved " + mWidth + "x" + mHeight + " frame as '" + filename + "'");
-            }
+            }*/
             //byte[] pixelBytes = mPixelBuf.array();
             //byte[] pixelBytes2 = buff2.array();
             //byte[] combinedArray = new byte[pixelBytes.length + pixelBytes2.length];
