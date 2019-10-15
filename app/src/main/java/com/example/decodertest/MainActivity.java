@@ -98,9 +98,9 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     private static final int X = 5;
     private static final int Y = 4;
     private static final int TILE_COUNT = X*Y;
-    private static final int[] FOCUS = {13};
+    private static final int[] FOCUS = {7,8,12,13};
     private static final int FOCUS_LENGTH = FOCUS.length;
-    private static final int MAX_FRAMES =1;       // the number of frames to hold in the buffer
+    private static final int MAX_FRAMES =10;       // the number of frames to hold in the buffer
     private static final int MAX_CHUNKS = 50;
     private static final int WAIT_TIME = 20;
     boolean rendered = true;
@@ -200,7 +200,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         int frameCount = 0;
         long completeStart = System.nanoTime();
         long startTime = System.nanoTime();
-        while(true) {
+        while(frameCount <100) {
             long renderStart = System.nanoTime();
 
             //Log.d(TAG, " framecount = " + frameCount + " framecounts " + frameCounts[0] + "  " + frameCounts[1] + "  " + frameCounts[2] + "  " + frameCounts[3]);
@@ -245,6 +245,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 if (layer ==0){
                     frame = bmQueues.getFrame();
                 }
+
                 else{
                     frame = bmQueues.getTiles(layer, frame);
                     Log.d(TAG, "load - get frame layer "+ layer + " len "+frame.length);
@@ -256,6 +257,11 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 //mergeBitmap(X,Y);
                 //merged.compress(Bitmap.CompressFormat.PNG, 90, bos);
 
+
+                //merge and save the image
+                File outputFile = new File(FILES_DIR,
+                        String.format("frame-%02d.png", frameCount));
+                //mergeBitmap(X,Y, outputFile.toString());
 
 /*
                 if (!allocated){
@@ -306,7 +312,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                     mSurface.unlockCanvasAndPost(canvTemp);
                     long get2Time = System.nanoTime() - startGet2;
                     Log.d(TAG, "haritha -draw time partial "+ get2Time);
-                    Log.d(TAG, "sync - rendered new frame");
+                    Log.d(TAG, "framecount sync - rendered new frame, framecount is " + frameCount);
                     rendered = false;
                     /*
                     for (int j =0; j <4; j++){
@@ -566,7 +572,9 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         public void addFrame(Bitmap bmp, int tileID) {
             try {
                 queue[tileID].put(bmp);
+                Log.d(TAG, "framecount added frame to queue " + tileID);
             } catch (InterruptedException e) {
+                Log.d(TAG, "frame dropped");
                 e.printStackTrace();
             }
         }
@@ -618,8 +626,10 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         int trackIndex;
         File inputFile;
         MediaFormat format;
+        int totalFrames = 0;
 
         for (int chunk_count = 0; chunk_count < MAX_CHUNKS; chunk_count++){
+            Log.d(TAG, "rendering chunk "+ chunk_count + " of tile "+frameID + " layer "+mLayer);
 
             try {
 
@@ -690,7 +700,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                     Log.d(TAG, "load chunk- "+loadTime);
                 }
 
-                doExtract(extractor, trackIndex, decoder, outputSurface, frameID, lowFPS, mLayer, mFocusID);
+                totalFrames += doExtract(extractor, trackIndex, decoder, outputSurface, frameID, lowFPS, mLayer, mFocusID);
+                Log.d(TAG, "framecount - total frames for tile "+ frameID + " layer "+ mLayer + " is " + totalFrames);
             } finally {
                 if (chunk_count == 49) {
                     // release everything we grabbed
@@ -738,7 +749,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     /**
      * Work loop.
      */
-    private void doExtract(MediaExtractor extractor, int trackIndex, MediaCodec decoder,
+    private int doExtract(MediaExtractor extractor, int trackIndex, MediaCodec decoder,
                            CodecOutputSurface outputSurface, int frameID, boolean lowFPS, int layer, int focusID) throws IOException {
         final int TIMEOUT_USEC = 2000;
         ByteBuffer[] decoderInputBuffers = decoder.getInputBuffers();
@@ -847,7 +858,9 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                             outputSurface.drawImage(true);
                             long startWhen = System.nanoTime();
                             Long drawStart = System.nanoTime();
-                            outputSurface.saveFrame(mPixelBuf);
+                            File outputFile = new File(FILES_DIR,
+                                    String.format("frame-%02d%02d.png",frameID, decodeCount));
+                            outputSurface.saveFrame(mPixelBuf, outputFile.toString());
                             bmp.copyPixelsFromBuffer(mPixelBuf);
                             Long drawTime = System.nanoTime() - drawStart;
                             //Bitmap bmp = outputSurface.saveFrame();
@@ -893,6 +906,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         int numSaved = (MAX_FRAMES < decodeCount) ? MAX_FRAMES : decodeCount;
         //Log.d(TAG, "Saving " + numSaved + " frames took " +
         //        (frameSaveTime / numSaved / 1000) + " us per frame");
+        return decodeCount;
     }
 
 
@@ -1130,7 +1144,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         /**
          * Saves the current frame to disk as a PNG image.
          */
-        public void saveFrame(ByteBuffer buff) throws IOException {
+        public void saveFrame(ByteBuffer buff, String filename) throws IOException {
             // glReadPixels gives us a ByteBuffer filled with what is essentially big-endian RGBA
             // data (i.e. a byte of red, followed by a byte of green...).  To use the Bitmap
             // constructor that takes an int[] array with pixel data, we need an int[] filled
@@ -1166,6 +1180,21 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             buff.rewind();
             GLES20.glReadPixels(0, 0, mWidth, mHeight, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE,
                     buff);
+/*
+            BufferedOutputStream bos = null;
+            try {
+                bos = new BufferedOutputStream(new FileOutputStream(filename));
+                Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
+                mPixelBuf.rewind();
+                bmp.copyPixelsFromBuffer(mPixelBuf);
+                bmp.compress(Bitmap.CompressFormat.PNG, 100, bos);
+                bmp.recycle();
+            } finally {
+                if (bos != null) bos.close();
+            }
+            if (VERBOSE) {
+                Log.d(TAG, "Saved " + mWidth + "x" + mHeight + " frame as '" + filename + "'");
+            }
             //byte[] pixelBytes = mPixelBuf.array();
             //byte[] pixelBytes2 = buff2.array();
             //byte[] combinedArray = new byte[pixelBytes.length + pixelBytes2.length];
@@ -1174,7 +1203,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             //ByteBuffer finalBuff = ByteBuffer.wrap(combinedArray);
 
             //mPixelBuf.rewind();
-            //bmp.recycle();
+            //bmp.recycle();*/
         }
         /**
          * Checks for EGL errors.
@@ -1421,7 +1450,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         return comboBitmap;
     }
 
-    public void mergeBitmap(int X, int Y){
+    public void mergeBitmap(int X, int Y, String filename){
         long startMerge = System.nanoTime();
         int width, height;
         int y,x;
@@ -1435,6 +1464,26 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             Log.d(TAG, "queue - x "+x+" y "+y);
             comboImage.drawBitmap(frame[i], width*x, height*y, null);
         }
+
+        //save the image
+        BufferedOutputStream bos = null;
+        try {
+            bos = new BufferedOutputStream(new FileOutputStream(filename));
+
+            merged.compress(Bitmap.CompressFormat.PNG, 100, bos);
+            merged.recycle();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } finally {
+            if (bos != null) {
+                try {
+                    bos.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
         long endMerge = System.nanoTime() - startMerge;
         Log.d(TAG, "merge time "+ endMerge);
     }
