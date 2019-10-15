@@ -93,7 +93,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
     // where to find files (note: requires WRITE_EXTERNAL_STORAGE permission)
     private static final File FILES_DIR = Environment.getExternalStorageDirectory();
-    private static final String TILE_DIR = "DrivingWith/frame_";
+    private static final String TILE_DIR = "DrivingWith_24fps_4Layers_pts_changed/frame_";
     private static final String INPUT_FILE = "/frame_";
     private static final int X = 5;
     private static final int Y = 4;
@@ -700,7 +700,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                     Log.d(TAG, "load chunk- "+loadTime);
                 }
 
-                totalFrames += doExtract(extractor, trackIndex, decoder, outputSurface, frameID, lowFPS, mLayer, mFocusID);
+                totalFrames += doExtract(extractor, trackIndex, decoder, outputSurface, frameID, lowFPS, mLayer, mFocusID, totalFrames);
                 Log.d(TAG, "framecount - total frames for tile "+ frameID + " layer "+ mLayer + " is " + totalFrames);
             } finally {
                 if (chunk_count == 49) {
@@ -750,7 +750,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
      * Work loop.
      */
     private int doExtract(MediaExtractor extractor, int trackIndex, MediaCodec decoder,
-                           CodecOutputSurface outputSurface, int frameID, boolean lowFPS, int layer, int focusID) throws IOException {
+                           CodecOutputSurface outputSurface, int frameID, boolean lowFPS, int layer, int focusID, int frameCount) throws IOException {
         final int TIMEOUT_USEC = 2000;
         ByteBuffer[] decoderInputBuffers = decoder.getInputBuffers();
         MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
@@ -859,18 +859,19 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                             long startWhen = System.nanoTime();
                             Long drawStart = System.nanoTime();
                             File outputFile = new File(FILES_DIR,
-                                    String.format("frame-%02d%02d.png",frameID, decodeCount));
+                                    String.format("frames/tframe-%02d_%03d.png",frameID, frameCount+decodeCount));
                             outputSurface.saveFrame(mPixelBuf, outputFile.toString());
-                            bmp.copyPixelsFromBuffer(mPixelBuf);
+                            /*bmp.copyPixelsFromBuffer(mPixelBuf);
                             Long drawTime = System.nanoTime() - drawStart;
                             //Bitmap bmp = outputSurface.saveFrame();
+
                             if (layer ==0) {
                                 bmQueues.addFrame(bmp, frameID);
                             }
                             else {
                                 Log.d(TAG, " intermediate tile id "+ (TILE_COUNT-FOCUS_LENGTH + focusID+layer*FOCUS_LENGTH) + " layer "+layer);
                                 bmQueues.addFrame(bmp, TILE_COUNT-FOCUS_LENGTH + focusID+layer*FOCUS_LENGTH);
-                            }
+                            }*/
                             frameSaveTime += System.nanoTime() - startWhen;
                             Long frameTime = System.nanoTime() - startWhen;
                             //Log.d(TAG, "queue - frame added to queue "+ decodeCount+ " in "+ frameTime +" draw time was "+ drawTime);
@@ -1180,13 +1181,13 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             buff.rewind();
             GLES20.glReadPixels(0, 0, mWidth, mHeight, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE,
                     buff);
-/*
+
             BufferedOutputStream bos = null;
             try {
                 bos = new BufferedOutputStream(new FileOutputStream(filename));
                 Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
-                mPixelBuf.rewind();
-                bmp.copyPixelsFromBuffer(mPixelBuf);
+                buff.rewind();
+                bmp.copyPixelsFromBuffer(buff);
                 bmp.compress(Bitmap.CompressFormat.PNG, 100, bos);
                 bmp.recycle();
             } finally {
@@ -1203,7 +1204,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             //ByteBuffer finalBuff = ByteBuffer.wrap(combinedArray);
 
             //mPixelBuf.rewind();
-            //bmp.recycle();*/
+            //bmp.recycle();
         }
         /**
          * Checks for EGL errors.
