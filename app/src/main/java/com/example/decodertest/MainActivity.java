@@ -98,7 +98,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     private static final int X = 5;
     private static final int Y = 4;
     private static final int TILE_COUNT = X*Y;
-    private static final int[] FOCUS = {12,13,7,8};
+    private static final int[] FOCUS = {7,8};
     private static final int FOCUS_LENGTH = FOCUS.length;
     private static final int MAX_FRAMES =1;       // the number of frames to hold in the buffer
     private static final int MAX_CHUNKS = 50;
