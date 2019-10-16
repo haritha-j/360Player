@@ -94,7 +94,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
     // where to find files (note: requires WRITE_EXTERNAL_STORAGE permission)
     private static final File FILES_DIR = Environment.getExternalStorageDirectory();
-    private static final String TILE_DIR = "DrivingWith_24fps_4Layers_pts_not_changed/DrivingWith_24fps_4Layers_pts_not_changed/frame_";
+    private static final String TILE_DIR = "DrivingWith_24fps_4Layers_pts_changed_same_I_frame_96_timebase/DrivingWith_24fps_4Layers_pts_changed_same_I_frame_96_timebase/frame_";
     private static final String INPUT_FILE = "/frame_";
     private static final int X = 5;
     private static final int Y = 4;
