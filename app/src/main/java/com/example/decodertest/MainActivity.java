@@ -100,7 +100,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     private static final int TILE_COUNT = X*Y;
     private static final int[] FOCUS = {7,8,12,13};
     private static final int FOCUS_LENGTH = FOCUS.length;
-    private static final int MAX_FRAMES =10;       // the number of frames to hold in the buffer
+    private static final int MAX_FRAMES =1;       // the number of frames to hold in the buffer
     private static final int MAX_CHUNKS = 50;
     private static final int WAIT_TIME = 20;
     boolean rendered = true;
@@ -260,8 +260,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
                 //merge and save the image
                 File outputFile = new File(FILES_DIR,
-                        String.format("frame-%02d.png", frameCount));
-                //mergeBitmap(X,Y, outputFile.toString());
+                        String.format("merged/frame-%02d.png", frameCount));
+                mergeBitmap(X,Y, outputFile.toString());
 
 /*
                 if (!allocated){
@@ -757,7 +757,6 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         int inputChunk = 0;
         int decodeCount = 0;
         long frameSaveTime = 0;
-
         boolean outputDone = false;
         boolean inputDone = false;
         Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_4444);
@@ -858,15 +857,16 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                             outputSurface.drawImage(true);
                             long startWhen = System.nanoTime();
                             Long drawStart = System.nanoTime();
-                            if ((frameID == 13) || (frameID ==12) || (frameID == 7)|| (frameID == 8)) {
+                            if (true){
+                            //if ((frameID == 13) || (frameID ==12) || (frameID == 7)|| (frameID == 8)) {
                                 File outputFile = new File(FILES_DIR,
                                         String.format("frames2/tframe-%02d_%03d.png", frameID, (frameCount + decodeCount) * 4 + layer));
                                 outputSurface.saveFrame(mPixelBuf, outputFile.toString());
                             }
-                            /*bmp.copyPixelsFromBuffer(mPixelBuf);
+                            bmp.copyPixelsFromBuffer(mPixelBuf);
                             Long drawTime = System.nanoTime() - drawStart;
                             //Bitmap bmp = outputSurface.saveFrame();
-
+                            Log.d(TAG, "saving current image "+decodeCount);
                             if (layer ==0) {
                                 bmQueues.addFrame(bmp, frameID);
                             }
@@ -875,7 +875,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                                 bmQueues.addFrame(bmp, TILE_COUNT-FOCUS_LENGTH + focusID+layer*FOCUS_LENGTH);
                             }
                             frameSaveTime += System.nanoTime() - startWhen;
-                            Long frameTime = System.nanoTime() - startWhen;*/
+                            Long frameTime = System.nanoTime() - startWhen;
                             //Log.d(TAG, "queue - frame added to queue "+ decodeCount+ " in "+ frameTime +" draw time was "+ drawTime);
                         }
 
@@ -1183,7 +1183,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             buff.rewind();
             GLES20.glReadPixels(0, 0, mWidth, mHeight, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE,
                     buff);
-
+/*
             BufferedOutputStream bos = null;
             try {
                 bos = new BufferedOutputStream(new FileOutputStream(filename));
@@ -1197,7 +1197,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             }
             if (VERBOSE) {
                 Log.d(TAG, "Saved " + mWidth + "x" + mHeight + " frame as '" + filename + "'");
-            }
+            }*/
             //byte[] pixelBytes = mPixelBuf.array();
             //byte[] pixelBytes2 = buff2.array();
             //byte[] combinedArray = new byte[pixelBytes.length + pixelBytes2.length];
