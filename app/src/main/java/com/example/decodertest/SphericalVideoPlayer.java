@@ -414,6 +414,7 @@ public class SphericalVideoPlayer extends TextureView implements SensorEventList
         private float lat;
         private float tempTheta;
         private float tempPhi;
+        private boolean halfFPS = true;
 
 
         private boolean frameAvailable;
@@ -566,7 +567,14 @@ public class SphericalVideoPlayer extends TextureView implements SensorEventList
             if (pendingCameraUpdate) {
                 pendingCameraUpdate = false;
             }
-            parent.setRender();
+            //change from 60fps to 30fps
+            if (halfFPS){
+                halfFPS = false;
+                parent.setRender();
+            }
+            else{
+                halfFPS = true;
+            }
         }
 
         private void updateCamera() {
