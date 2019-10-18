@@ -415,6 +415,7 @@ public class SphericalVideoPlayer extends TextureView implements SensorEventList
         private float tempTheta;
         private float tempPhi;
         private boolean halfFPS = true;
+        private int focusCount = 0;
 
 
         private boolean frameAvailable;
@@ -574,6 +575,11 @@ public class SphericalVideoPlayer extends TextureView implements SensorEventList
             }
             else{
                 halfFPS = true;
+            }
+            focusCount++;
+            if(focusCount ==400){
+                parent.setFocus();
+                Log.d(TAG, "gyro - focus modified");
             }
         }
 

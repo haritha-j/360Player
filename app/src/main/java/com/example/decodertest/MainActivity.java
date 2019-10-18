@@ -99,7 +99,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     private static final int Y = 4;
     private static final int TILE_COUNT = X*Y;
     private int[] FOCUS = {7,12,8,13};
-    private int FOCUS_LENGTH = FOCUS.length;
+    //private int FOCUS_LENGTH = FOCUS.length;
     private static final int MAX_FRAMES =10;       // the number of frames to hold in the buffer
     private static final int MAX_CHUNKS = 50;
     private static final int WAIT_TIME = 20;
@@ -174,7 +174,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         try {
             for (int tile = 0; tile < TILE_COUNT; tile++) {
                 ExtractMpegFramesWrapper.runTest(this, tile, 0, 0);
-                for (int j = 0; j < FOCUS_LENGTH; j++){
+                for (int j = 0; j < FOCUS.length; j++){
                     if (tile == FOCUS[j]) {
                         Log.d(TAG, "focus tile "+ j + " tile " + tile);
                         ExtractMpegFramesWrapper.runTest(this, tile, 1, j);
@@ -196,8 +196,13 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         rendered = true;
     }
 
-    public void setFocus(int a){
-
+    public void setFocus(){
+        bmQueues.flushQueues();
+        FOCUS[0] = 5;
+        FOCUS[1] = 6;
+        FOCUS[2] = 10;
+        FOCUS[3] = 11;
+        gyroChanged = true;
     }
 
 
@@ -221,7 +226,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             //while ((frameCounts <= frameCount) || (frame2Count <= frameCount)) {
             //    SystemClock.sleep(20);
             //}
-            Log.d(TAG, "Frame available on BMP arrays");
+            Log.d(TAG, "gyro - Frame available on BMP arrays");
             //BufferedOutputStream bos = null;
             //File outputFile = new File(FILES_DIR,
             //       String.format("pics/frame-%02d.png", frameCount));
@@ -261,6 +266,13 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 //mergeBitmap(X,Y);
                 //merged.compress(Bitmap.CompressFormat.PNG, 90, bos);
 
+
+                //save merged tiles as bitmaps
+                File outputFile = new File(FILES_DIR,
+                        String.format("merged/frame-%02d.png", frameCount));
+
+                //save the merged frame
+                //mergeBitmap(X,Y, outputFile.toString());
 
 /*
                 if (!allocated){
@@ -477,7 +489,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         public static void runTest(MainActivity obj, int frameID, int layer, int focusID) throws Throwable {
             ExtractMpegFramesWrapper wrapper = new ExtractMpegFramesWrapper(obj, frameID, layer, focusID);
             Thread th = new Thread(wrapper, "codec test");
-            th.setPriority(8);
+            //th.setPriority(8);
             th.start();
             //th.join();
             if (wrapper.mThrowable != null) {
@@ -566,9 +578,24 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             }*/
         }
 
+        public void flushQueues(){
+            for (int i = 0; i <8; i++) {
+                for (int layer = 1; layer < 4; layer++) {
+                    for (int j = 0; j < FOCUS.length; j++) {
+                        //Log.d(TAG, "gyro - queue - remaining space before " + queue[extraTiles * layer + FOCUS[j]].remainingCapacity() + " taking from " + (extraTiles * layer + FOCUS[j]));
+                        queue[extraTiles * layer + FOCUS[j]].poll();
+                        //Log.d(TAG, "gyro - queue - remaining space after " + queue[extraTiles * layer + FOCUS[j]].remainingCapacity());
+                    }
+                }
+            }
+        }
+
         public void addFrame(Bitmap bmp, int tileID) {
             try {
+                Log.d(TAG, "before adding tile "+ tileID);
                 queue[tileID].put(bmp);
+                Log.d(TAG, "after adding tile "+ tileID);
+
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
@@ -590,13 +617,13 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
         //load high refresh rate tiles only
         public Bitmap[] getTiles(int layer, Bitmap[] frame) {
-            for (int j=0; j < FOCUS_LENGTH; j++) {
+            for (int j=0; j < FOCUS.length; j++) {
                 try {
-                    //Log.d(TAG, "queue - remaining space before " + queue[i].remainingCapacity()+ " taking from "+ i );
+                    Log.d(TAG, "gyro - queue - remaining space before " + queue[extraTiles*layer + FOCUS[j]].remainingCapacity()+ " taking from "+ (extraTiles*layer + FOCUS[j]));
                     frame[FOCUS[j]] = queue[extraTiles*layer + FOCUS[j]].take();
-                    //Log.d(TAG, "queue - remaining space after " + queue[i].remainingCapacity());
-                    j++;
+                    Log.d(TAG, "gyro - queue - remaining space after " + queue[extraTiles*layer + FOCUS[j]].remainingCapacity());
                 } catch (InterruptedException e) {
+                    Log.d(TAG, "get focus frame failed");
                     e.printStackTrace();
                 }
             }
@@ -623,7 +650,6 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         int frameID = tile;
 
         for (int chunk_count = 0; chunk_count < MAX_CHUNKS; chunk_count++){
-
             try {
 
                 if (chunk_count == 0) {
@@ -670,11 +696,13 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 else {
                     //decoder.stop();
                     //Log.d(TAG, "layer "+mLayer);
-                    if (mLayer !=0){
+
+                    //update gyro
+                    if (mLayer !=0) {
+                        Log.d(TAG, "gyro - load - secondary tile " + frameID);
                         frameID = FOCUS[mFocusID];
                     }
 
-                    Log.d(TAG, "load - secondary tile");
                     inputFile = new File(FILES_DIR, TILE_DIR + frameID + INPUT_FILE + String.format("%03d_%d.mp4", chunk_count, mLayer));   // must be an absolute path
                     // The MediaExtractor error messages aren't very useful.  Check to see if the input
                     // file exists so we can throw a better one if it's not there
@@ -1431,7 +1459,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         return comboBitmap;
     }
 
-    public void mergeBitmap(int X, int Y){
+    public void mergeBitmap(int X, int Y, String filename){
         long startMerge = System.nanoTime();
         int width, height;
         int y,x;
@@ -1445,6 +1473,27 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             Log.d(TAG, "queue - x "+x+" y "+y);
             comboImage.drawBitmap(frame[i], width*x, height*y, null);
         }
+
+        //save the image
+        BufferedOutputStream bos = null;
+        try {
+            bos = new BufferedOutputStream(new FileOutputStream(filename));
+
+            merged.compress(Bitmap.CompressFormat.PNG, 100, bos);
+            merged.recycle();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } finally {
+            if (bos != null) {
+                try {
+                    bos.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+
         long endMerge = System.nanoTime() - startMerge;
         Log.d(TAG, "merge time "+ endMerge);
     }
