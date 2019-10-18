@@ -98,8 +98,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     private static final int X = 5;
     private static final int Y = 4;
     private static final int TILE_COUNT = X*Y;
-    private static final int[] FOCUS = {13,12,8,7};
-    private static final int FOCUS_LENGTH = FOCUS.length;
+    private int[] FOCUS = {7,12,8,13};
+    private int FOCUS_LENGTH = FOCUS.length;
     private static final int MAX_FRAMES =10;       // the number of frames to hold in the buffer
     private static final int MAX_CHUNKS = 50;
     private static final int WAIT_TIME = 20;
@@ -126,6 +126,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     int frameWidth;
     int width, height;
     int y,x;
+    boolean gyroChanged = false;
     //Boolean allocated;
     //RenderScript rs;
     //Allocation al;
@@ -163,7 +164,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         //frames = new Bitmap[TILE_COUNT][MAX_FRAMES];
         //frameCounts = new int[TILE_COUNT];
 
-        bmQueues = new BitmapQueues(TILE_COUNT, FOCUS_LENGTH, MAX_FRAMES);
+        bmQueues = new BitmapQueues(TILE_COUNT, TILE_COUNT, MAX_FRAMES);
         frame = new Bitmap[TILE_COUNT];
         //intermediateFrame = new Bitmap[FOCUS_LENGTH*3];
         //allocated = false;
@@ -172,13 +173,13 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         //extractor = new ExtractMpegFramesWrapper(this);
         try {
             for (int tile = 0; tile < TILE_COUNT; tile++) {
-                ExtractMpegFramesWrapper.runTest(this, TILE_DIR + tile + INPUT_FILE, tile, 0, 0);
+                ExtractMpegFramesWrapper.runTest(this, tile, 0, 0);
                 for (int j = 0; j < FOCUS_LENGTH; j++){
                     if (tile == FOCUS[j]) {
                         Log.d(TAG, "focus tile "+ j + " tile " + tile);
-                        ExtractMpegFramesWrapper.runTest(this, TILE_DIR + tile + INPUT_FILE, tile, 1, j);
-                        ExtractMpegFramesWrapper.runTest(this, TILE_DIR + tile + INPUT_FILE, tile, 2, j);
-                        ExtractMpegFramesWrapper.runTest(this, TILE_DIR + tile + INPUT_FILE, tile, 3, j);
+                        ExtractMpegFramesWrapper.runTest(this, tile, 1, j);
+                        ExtractMpegFramesWrapper.runTest(this, tile, 2, j);
+                        ExtractMpegFramesWrapper.runTest(this, tile, 3, j);
                     }
                 }
             }
@@ -193,6 +194,10 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
     public void setRender(){
         rendered = true;
+    }
+
+    public void setFocus(int a){
+
     }
 
 
@@ -448,9 +453,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         private int mFocusID;
         private boolean lowFPS = false;
 
-        private ExtractMpegFramesWrapper(MainActivity test, String fileName, int frameID, int layer, int focusID) {
+        private ExtractMpegFramesWrapper(MainActivity test, int frameID, int layer, int focusID) {
             mTest = test;
-            mFileName = fileName;
             mFrameID = frameID;
             mLayer = layer;
             mFocusID = focusID;
@@ -460,7 +464,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         @Override
         public void run() {
             try {
-                mTest.extractMpegFrames(mFileName, mFrameID, lowFPS, mLayer, mFocusID);
+                mTest.extractMpegFrames( mFrameID, lowFPS, mLayer, mFocusID);
             } catch (Throwable th) {
                 Log.d(TAG, "error running extractor", th);
                 mThrowable = th;
@@ -470,8 +474,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         /**
          * Entry point.
          */
-        public static void runTest(MainActivity obj, String mFileName, int frameID, int layer, int focusID) throws Throwable {
-            ExtractMpegFramesWrapper wrapper = new ExtractMpegFramesWrapper(obj, mFileName, frameID, layer, focusID);
+        public static void runTest(MainActivity obj, int frameID, int layer, int focusID) throws Throwable {
+            ExtractMpegFramesWrapper wrapper = new ExtractMpegFramesWrapper(obj, frameID, layer, focusID);
             Thread th = new Thread(wrapper, "codec test");
             th.setPriority(8);
             th.start();
@@ -541,14 +545,13 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         private int extraTiles;
         private int frameLimit;
         private Bitmap[] tileCollection;
-        private Bitmap[] tileCollectionExtra;
+
 
         private BitmapQueues(int tileCount, int extraTiles, int frameLimit) {
             this.tileCount = tileCount;
             this.frameLimit = frameLimit;
             this.extraTiles = extraTiles;
             tileCollection = new Bitmap[tileCount];
-            tileCollectionExtra = new Bitmap[extraTiles*3];
             //currentFrame = new int[tileCount];
 
 
@@ -587,12 +590,11 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
         //load high refresh rate tiles only
         public Bitmap[] getTiles(int layer, Bitmap[] frame) {
-            int j = 0;
-            for (int i = tileCount -extraTiles + layer*extraTiles; i < tileCount + layer*extraTiles; i++) {
+            for (int j=0; j < FOCUS_LENGTH; j++) {
                 try {
-                    Log.d(TAG, "queue - remaining space before " + queue[i].remainingCapacity()+ " taking from "+ i );
-                    frame[FOCUS[j]] = queue[i].take();
-                    Log.d(TAG, "queue - remaining space after " + queue[i].remainingCapacity());
+                    //Log.d(TAG, "queue - remaining space before " + queue[i].remainingCapacity()+ " taking from "+ i );
+                    frame[FOCUS[j]] = queue[extraTiles*layer + FOCUS[j]].take();
+                    //Log.d(TAG, "queue - remaining space after " + queue[i].remainingCapacity());
                     j++;
                 } catch (InterruptedException e) {
                     e.printStackTrace();
@@ -609,7 +611,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
      * it by adjusting the GL viewport to get letterboxing or pillarboxing, but generally if
      * you're extracting frames you don't want black bars.
      */
-    private void extractMpegFrames(String inputFileUrl, int frameID, boolean lowFPS, int mLayer, int mFocusID) throws IOException {
+    private void extractMpegFrames(int tile, boolean lowFPS, int mLayer, int mFocusID) throws IOException {
         MediaCodec decoder = null;
         CodecOutputSurface outputSurface = null;
         MediaExtractor extractor = null;
@@ -618,6 +620,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         int trackIndex;
         File inputFile;
         MediaFormat format;
+        int frameID = tile;
 
         for (int chunk_count = 0; chunk_count < MAX_CHUNKS; chunk_count++){
 
@@ -625,7 +628,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
                 if (chunk_count == 0) {
 
-                    inputFile = new File(FILES_DIR, inputFileUrl + String.format("%03d_%d.mp4", chunk_count, mLayer));   // must be an absolute path
+                    inputFile = new File(FILES_DIR, TILE_DIR + frameID + INPUT_FILE + String.format("%03d_%d.mp4", chunk_count, mLayer));   // must be an absolute path
                     // The MediaExtractor error messages aren't very useful.  Check to see if the input
                     // file exists so we can throw a better one if it's not there
 
@@ -666,8 +669,13 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 }
                 else {
                     //decoder.stop();
+                    //Log.d(TAG, "layer "+mLayer);
+                    if (mLayer !=0){
+                        frameID = FOCUS[mFocusID];
+                    }
+
                     Log.d(TAG, "load - secondary tile");
-                    inputFile = new File(FILES_DIR, inputFileUrl + String.format("%03d_%d.mp4", chunk_count, mLayer));   // must be an absolute path
+                    inputFile = new File(FILES_DIR, TILE_DIR + frameID + INPUT_FILE + String.format("%03d_%d.mp4", chunk_count, mLayer));   // must be an absolute path
                     // The MediaExtractor error messages aren't very useful.  Check to see if the input
                     // file exists so we can throw a better one if it's not there
 
@@ -857,8 +865,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                                 bmQueues.addFrame(bmp, frameID);
                             }
                             else {
-                                Log.d(TAG, " intermediate tile id "+ (TILE_COUNT-FOCUS_LENGTH + focusID+layer*FOCUS_LENGTH) + " layer "+layer);
-                                bmQueues.addFrame(bmp, TILE_COUNT-FOCUS_LENGTH + focusID+layer*FOCUS_LENGTH);
+                                Log.d(TAG, " intermediate tile id "+ (frameID + layer * 20) + " layer "+layer);
+                                bmQueues.addFrame(bmp, frameID + layer * 20);
                             }
                             frameSaveTime += System.nanoTime() - startWhen;
                             Long frameTime = System.nanoTime() - startWhen;
