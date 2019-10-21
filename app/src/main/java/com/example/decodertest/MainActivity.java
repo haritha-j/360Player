@@ -93,7 +93,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
     // where to find files (note: requires WRITE_EXTERNAL_STORAGE permission)
     private static final File FILES_DIR = Environment.getExternalStorageDirectory();
-    private static final String TILE_DIR = "DrivingWith_32fps_4Layers_pts_changed_different_I_frame_96_timebase_h265/DrivingWith_32fps_4Layers_pts_changed_different_I_frame_96_timebase_h265/frame_";
+    private static final String TILE_DIR = "data/data/frame_";
     private static final String INPUT_FILE = "/frame_";
     private static final int X = 5;
     private static final int Y = 4;
@@ -253,7 +253,10 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 long getTime = System.nanoTime() - startGet;
                 Log.d(TAG, "queue - collected frame "+frameCount +" time "+ getTime);
                 //merged = mergeBitmap(frames[0][frameCount],frames[1][frameCount],frames[2][frameCount],frames[3][frameCount]);
-                //mergeBitmap(X,Y);
+
+                File outputFile = new File(FILES_DIR,
+                        String.format("merged/frame-%02d.png", frameCount));
+                mergeBitmap(X,Y, outputFile.toString());
                 //merged.compress(Bitmap.CompressFormat.PNG, 90, bos);
 
 
@@ -1423,7 +1426,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         return comboBitmap;
     }
 
-    public void mergeBitmap(int X, int Y){
+    public void mergeBitmap(int X, int Y, String filename){
         long startMerge = System.nanoTime();
         int width, height;
         int y,x;
@@ -1439,6 +1442,25 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         }
         long endMerge = System.nanoTime() - startMerge;
         Log.d(TAG, "merge time "+ endMerge);
+
+        //save the image
+        BufferedOutputStream bos = null;
+        try {
+            bos = new BufferedOutputStream(new FileOutputStream(filename));
+
+            merged.compress(Bitmap.CompressFormat.PNG, 100, bos);
+            merged.recycle();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } finally {
+            if (bos != null) {
+                try {
+                    bos.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
     }
 
 
