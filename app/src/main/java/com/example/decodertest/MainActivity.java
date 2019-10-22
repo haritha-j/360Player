@@ -101,7 +101,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     private int[] FOCUS = {15,16,17,18};//these have to be these, because this is the region that loads on screen by default, and if the focus is changed too fast at the start, the app crashes
     private int[] FOCUSTEMP = {15,16,17,18};
     //private int FOCUS_LENGTH = FOCUS.length;
-    private static final int MAX_FRAMES =10;       // the number of frames to hold in the buffer
+    private static final int MAX_FRAMES =4;       // the number of frames to hold in the buffer
     private static final int MAX_CHUNKS = 50;
     private static final int WAIT_TIME = 20;
     boolean rendered = true;
@@ -127,7 +127,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     int frameWidth;
     int width, height;
     int y,x;
-    boolean gyroChanged = false;
+    boolean[] gyroChanged = new boolean[FOCUS.length];
+
     //Boolean allocated;
     //RenderScript rs;
     //Allocation al;
@@ -196,6 +197,18 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     public void setRender(){
         rendered = true;
     }
+
+    public void testFocus(){
+        bmQueues.flushQueues();
+        FOCUS[0] = 5;
+        FOCUS[1] = 6;
+        FOCUS[2] = 10;
+        FOCUS[3] = 11;
+        for (int i = 0; i < FOCUS.length; i++) {
+            gyroChanged[i] = true;
+        }
+    }
+
 
     public void setFocus(float phi, float theta){
         int y1,y2, x1,x2;
@@ -269,7 +282,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             FOCUS[1] = FOCUSTEMP[1];
             FOCUS[2] = FOCUSTEMP[2];
             FOCUS[3] = FOCUSTEMP[3];
-            gyroChanged = true;
+            //gyroChanged = true;
         }
         /*
         bmQueues.flushQueues();
@@ -655,7 +668,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         }
 
         public void flushQueues(){
-            for (int i = 0; i <MAX_FRAMES; i++) {
+            for (int i = 0; i <MAX_FRAMES-2; i++) {
                 for (int layer = 1; layer < 4; layer++) {
                     for (int j = 0; j < FOCUS.length; j++) {
                         //Log.d(TAG, "gyro - queue - remaining space before " + queue[extraTiles * layer + FOCUS[j]].remainingCapacity() + " taking from " + (extraTiles * layer + FOCUS[j]));
@@ -866,6 +879,13 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         mPixelBuf.order(ByteOrder.LITTLE_ENDIAN);
 
         while (!outputDone) {
+
+            //break if focus has changed
+            if (gyroChanged[focusID] && layer != 0){
+                gyroChanged[focusID] = false;
+                break;
+            }
+
             if (VERBOSE) Log.d(TAG, "loop");
 
             // Feed more data to the decoder.
@@ -1004,7 +1024,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         Log.d(TAG, "framesave time for tile "+ frameID + " is "+frameSaveTime + " saved "+decodeCount+ " frames.");
 
 
-        int numSaved = (MAX_FRAMES < decodeCount) ? MAX_FRAMES : decodeCount;
+        //int numSaved = (MAX_FRAMES < decodeCount) ? MAX_FRAMES : decodeCount;
         //Log.d(TAG, "Saving " + numSaved + " frames took " +
         //        (frameSaveTime / numSaved / 1000) + " us per frame");
     }
