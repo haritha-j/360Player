@@ -578,7 +578,7 @@ public class SphericalVideoPlayer extends TextureView implements SensorEventList
             }
             focusCount++;
             if(focusCount ==400){
-                parent.setFocus();
+                //parent.setFocus(2.3, 3,3);
                 Log.d(TAG, "gyro - focus modified");
             }
         }
@@ -603,9 +603,12 @@ public class SphericalVideoPlayer extends TextureView implements SensorEventList
 
                     phi = (float) (((180-tempPhi)*3.14)/180.0);
                     theta = (float) ((tempTheta*3.14)/180.0);
+                    //Log.d(TAG, "angles - phi "+ phi + " theta " + theta);
                     camera[0] = (float) (100.f * Math.sin(phi) * Math.cos(theta));
                     camera[1] = (float) (100.f * Math.cos(phi));
                     camera[2] = (float) (100.f * Math.sin(phi) * Math.sin(theta));
+                    parent.setFocus(phi, theta);
+
             }
 
             /*phi = (float) Math.toRadians(90 - lat);

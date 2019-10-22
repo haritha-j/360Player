@@ -98,7 +98,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     private static final int X = 5;
     private static final int Y = 4;
     private static final int TILE_COUNT = X*Y;
-    private int[] FOCUS = {7,12,8,13};
+    private int[] FOCUS = {15,16,17,18};//these have to be these, because this is the region that loads on screen by default, and if the focus is changed too fast at the start, the app crashes
+    private int[] FOCUSTEMP = {15,16,17,18};
     //private int FOCUS_LENGTH = FOCUS.length;
     private static final int MAX_FRAMES =10;       // the number of frames to hold in the buffer
     private static final int MAX_CHUNKS = 50;
@@ -196,13 +197,88 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         rendered = true;
     }
 
-    public void setFocus(){
+    public void setFocus(float phi, float theta){
+        int y1,y2, x1,x2;
+        if (phi < 0.5){
+            y1= 0;
+            y2 =0;
+        }
+        else if (phi < 1.2 ) {
+            y1 = 0;
+            y2 = 1;
+        }
+        else if (phi < 2.0 ) {
+            y1 = 1;
+            y2 = 2;
+        }
+        else if (phi < 2.7 ) {
+            y1 = 2;
+            y2 = 3;
+        }
+        else {
+            y1 = 3;
+            y2 = 3;
+        }
+
+        if (theta > 2.9 || theta < -2.2) {
+            x1 = 0;
+            x2 = 1;
+        }
+        else if (theta < -0.9) {
+            x1 = 4;
+            x2 = 0;
+        }
+        else if (theta < 0.30) {
+            x1 = 3;
+            x2 = 4;
+        }
+        else if (theta < 1.6) {
+            x1 = 2;
+            x2 = 3;
+        }
+        else {
+            x1 = 2;
+            x2 = 1;
+        }
+
+
+        Log.d(TAG, "angles - y1 "+ y1 + " y2 " + y2 + " x1 " + x1 + " x2 " + x2);
+        if (y1 == 0 && y2 == 0){
+            FOCUSTEMP[0] = 0;
+            FOCUSTEMP[1] = 1;
+            FOCUSTEMP[2] = 2;
+            FOCUSTEMP[3] = 3;
+        }
+        else if (y1 == 3 && y2 == 3){
+            FOCUSTEMP[0] = 15;
+            FOCUSTEMP[1] = 16;
+            FOCUSTEMP[2] = 17;
+            FOCUSTEMP[3] = 18;
+        }
+        else {
+            FOCUSTEMP[0] = y1*5 + x1;
+            FOCUSTEMP[1] = y1*5 + x2;
+            FOCUSTEMP[2] = y2*5 + x1;
+            FOCUSTEMP[3] = y2*5 + x2;
+        }
+
+        if (FOCUSTEMP[0] !=FOCUS[0] || FOCUSTEMP[1] != FOCUS[1] || FOCUSTEMP[2] != FOCUS[2] || FOCUSTEMP[3] != FOCUS[3]){
+            Log.d(TAG, "angles - focus changed ");
+            bmQueues.flushQueues();
+            FOCUS[0] = FOCUSTEMP[0];
+            FOCUS[1] = FOCUSTEMP[1];
+            FOCUS[2] = FOCUSTEMP[2];
+            FOCUS[3] = FOCUSTEMP[3];
+            gyroChanged = true;
+        }
+        /*
         bmQueues.flushQueues();
         FOCUS[0] = 5;
         FOCUS[1] = 6;
         FOCUS[2] = 10;
         FOCUS[3] = 11;
         gyroChanged = true;
+        */
     }
 
 
@@ -579,7 +655,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         }
 
         public void flushQueues(){
-            for (int i = 0; i <8; i++) {
+            for (int i = 0; i <MAX_FRAMES; i++) {
                 for (int layer = 1; layer < 4; layer++) {
                     for (int j = 0; j < FOCUS.length; j++) {
                         //Log.d(TAG, "gyro - queue - remaining space before " + queue[extraTiles * layer + FOCUS[j]].remainingCapacity() + " taking from " + (extraTiles * layer + FOCUS[j]));
