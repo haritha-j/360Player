@@ -69,6 +69,7 @@ import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 //20131122: minor tweaks to saveFrame() I/O
 //20131205: add alpha to EGLConfig (huge glReadPixels speedup); pre-allocate pixel buffers;
@@ -101,7 +102,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     private int[] FOCUS = {15,16,17,18};//these have to be these, because this is the region that loads on screen by default, and if the focus is changed too fast at the start, the app crashes
     private int[] FOCUSTEMP = {15,16,17,18};
     //private int FOCUS_LENGTH = FOCUS.length;
-    private static final int MAX_FRAMES =4;       // the number of frames to hold in the buffer
+    private static final int MAX_FRAMES =9;       // the number of frames to hold in the buffer
     private static final int MAX_CHUNKS = 50;
     private static final int WAIT_TIME = 20;
     boolean rendered = true;
@@ -710,9 +711,11 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 try {
                     Log.d(TAG, "gyro - queue - remaining space before " + queue[extraTiles*layer + FOCUS[j]].remainingCapacity()+ " taking from "+ (extraTiles*layer + FOCUS[j]));
                     frame[FOCUS[j]] = queue[extraTiles*layer + FOCUS[j]].take();
+                    //frame[FOCUS[j]] = queue[extraTiles*layer + FOCUS[j]].poll(100, TimeUnit.MILLISECONDS);
+
                     Log.d(TAG, "gyro - queue - remaining space after " + queue[extraTiles*layer + FOCUS[j]].remainingCapacity());
                 } catch (InterruptedException e) {
-                    Log.d(TAG, "get focus frame failed");
+                    Log.d(TAG, "gyro - get focus frame failed");
                     e.printStackTrace();
                 }
             }
