@@ -93,7 +93,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
     // where to find files (note: requires WRITE_EXTERNAL_STORAGE permission)
     private static final File FILES_DIR = Environment.getExternalStorageDirectory();
-    private static final String TILE_DIR = "data/data/frame_";
+    private static final String TILE_DIR = "DrivingWith_32fps_4Layers_pts_changed_different_I_frame_96_timebase_h265/DrivingWith_32fps_4Layers_pts_changed_different_I_frame_96_timebase_h265/frame_";
     private static final String INPUT_FILE = "/frame_";
     private static final int X = 5;
     private static final int Y = 4;
@@ -256,7 +256,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
                 File outputFile = new File(FILES_DIR,
                         String.format("merged/frame-%02d.png", frameCount));
-                mergeBitmap(X,Y, outputFile.toString());
+                //mergeBitmap(X,Y, outputFile.toString());
                 //merged.compress(Bitmap.CompressFormat.PNG, 90, bos);
 
 
@@ -693,7 +693,10 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                     Log.d(TAG, "load chunk- "+loadTime);
                 }
 
-                doExtract(extractor, trackIndex, decoder, outputSurface, frameID, lowFPS, mLayer, mFocusID);
+                boolean decoderSuccess = doExtract(extractor, trackIndex, decoder, outputSurface, frameID, lowFPS, mLayer, mFocusID);
+                if (!decoderSuccess){
+                    chunk_count--;
+                }
             } finally {
                 if (chunk_count == 49) {
                     // release everything we grabbed
@@ -741,7 +744,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     /**
      * Work loop.
      */
-    private void doExtract(MediaExtractor extractor, int trackIndex, MediaCodec decoder,
+    private boolean doExtract(MediaExtractor extractor, int trackIndex, MediaCodec decoder,
                            CodecOutputSurface outputSurface, int frameID, boolean lowFPS, int layer, int focusID) throws IOException {
         final int TIMEOUT_USEC = 2000;
         ByteBuffer[] decoderInputBuffers = decoder.getInputBuffers();
@@ -804,6 +807,11 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 } else if (decoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                     MediaFormat newFormat = decoder.getOutputFormat();
                     if (VERBOSE) Log.d(TAG, "decoder output format changed: " + newFormat);
+
+                    if (newFormat.getInteger(MediaFormat.KEY_COLOR_FORMAT)!=19){
+                            return false;
+                        }
+
                 } else if (decoderStatus < 0) {
                     Log.d(TAG, "unexpected result from decoder.dequeueOutputBuffer: " + decoderStatus);
                     break;
@@ -898,6 +906,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         int numSaved = (MAX_FRAMES < decodeCount) ? MAX_FRAMES : decodeCount;
         //Log.d(TAG, "Saving " + numSaved + " frames took " +
         //        (frameSaveTime / numSaved / 1000) + " us per frame");
+        return true;
     }
 
 
