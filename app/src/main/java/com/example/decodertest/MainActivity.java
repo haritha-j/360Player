@@ -339,7 +339,10 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 long getTime = System.nanoTime() - startGet;
                 Log.d(TAG, "queue - collected frame "+frameCount +" time "+ getTime);
                 //merged = mergeBitmap(frames[0][frameCount],frames[1][frameCount],frames[2][frameCount],frames[3][frameCount]);
-                //mergeBitmap(X,Y);
+
+                File outputFile = new File(FILES_DIR,
+                        String.format("merged/frame-%02d.png", frameCount));
+                //mergeBitmap(X,Y, outputFile.toString());
                 //merged.compress(Bitmap.CompressFormat.PNG, 90, bos);
 
 
@@ -802,7 +805,10 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                     Log.d(TAG, "load chunk- "+loadTime);
                 }
 
-                doExtract(extractor, trackIndex, decoder, outputSurface, frameID, lowFPS, mLayer, mFocusID);
+                boolean decoderSuccess = doExtract(extractor, trackIndex, decoder, outputSurface, frameID, lowFPS, mLayer, mFocusID);
+                if (!decoderSuccess){
+                    chunk_count--;
+                }
             } finally {
                 if (chunk_count == 49) {
                     // release everything we grabbed
@@ -850,7 +856,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     /**
      * Work loop.
      */
-    private void doExtract(MediaExtractor extractor, int trackIndex, MediaCodec decoder,
+    private boolean doExtract(MediaExtractor extractor, int trackIndex, MediaCodec decoder,
                            CodecOutputSurface outputSurface, int frameID, boolean lowFPS, int layer, int focusID) throws IOException {
         final int TIMEOUT_USEC = 2000;
         ByteBuffer[] decoderInputBuffers = decoder.getInputBuffers();
@@ -913,6 +919,11 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 } else if (decoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                     MediaFormat newFormat = decoder.getOutputFormat();
                     if (VERBOSE) Log.d(TAG, "decoder output format changed: " + newFormat);
+
+                    if (newFormat.getInteger(MediaFormat.KEY_COLOR_FORMAT)!=19){
+                            return false;
+                        }
+
                 } else if (decoderStatus < 0) {
                     Log.d(TAG, "unexpected result from decoder.dequeueOutputBuffer: " + decoderStatus);
                     break;
@@ -1007,6 +1018,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         int numSaved = (MAX_FRAMES < decodeCount) ? MAX_FRAMES : decodeCount;
         //Log.d(TAG, "Saving " + numSaved + " frames took " +
         //        (frameSaveTime / numSaved / 1000) + " us per frame");
+        return true;
     }
 
 
@@ -1572,6 +1584,25 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
         long endMerge = System.nanoTime() - startMerge;
         Log.d(TAG, "merge time "+ endMerge);
+
+        //save the image
+        BufferedOutputStream bos = null;
+        try {
+            bos = new BufferedOutputStream(new FileOutputStream(filename));
+
+            merged.compress(Bitmap.CompressFormat.PNG, 100, bos);
+            merged.recycle();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } finally {
+            if (bos != null) {
+                try {
+                    bos.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
     }
 
 
