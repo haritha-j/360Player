@@ -347,8 +347,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
 
                 //save merged tiles as bitmaps
-                File outputFile = new File(FILES_DIR,
-                        String.format("merged/frame-%02d.png", frameCount));
+
 
                 //save the merged frame
                 //mergeBitmap(X,Y, outputFile.toString());
@@ -1585,24 +1584,6 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         long endMerge = System.nanoTime() - startMerge;
         Log.d(TAG, "merge time "+ endMerge);
 
-        //save the image
-        BufferedOutputStream bos = null;
-        try {
-            bos = new BufferedOutputStream(new FileOutputStream(filename));
-
-            merged.compress(Bitmap.CompressFormat.PNG, 100, bos);
-            merged.recycle();
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } finally {
-            if (bos != null) {
-                try {
-                    bos.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
     }
 
 
