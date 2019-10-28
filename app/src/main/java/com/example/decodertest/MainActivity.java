@@ -656,6 +656,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             }*/
         }
 
+        //remove current tiles from the queue after focus is lost
         public void flushQueues(){
             for (int i = 0; i <MAX_FRAMES; i++) {
                 for (int layer = 1; layer < 4; layer++) {
