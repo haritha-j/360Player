@@ -287,8 +287,11 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         int frameCount = 0;
         long completeStart = System.nanoTime();
         long startTime = System.nanoTime();
+        int[] tempfocus = new int[FOCUS.length];
         int[] focus = new int[FOCUS.length];
         System.arraycopy(FOCUS, 0, focus, 0, FOCUS.length);
+        System.arraycopy(FOCUS, 0, tempfocus, 0, FOCUS.length);
+
         while(true) {
             long renderStart = System.nanoTime();
 
@@ -329,7 +332,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 //Bitmap blank = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
                 long startGet = System.nanoTime();
                 if (frameCount %32 == 0){
-                    System.arraycopy(FOCUS, 0, focus, 0, FOCUS.length);
+                    System.arraycopy(tempfocus, 0, focus, 0, FOCUS.length);
+                    System.arraycopy(FOCUS, 0, tempfocus, 0, FOCUS.length);
                 }
                 Log.d(TAG, "focus - "+ focus[0]);
                 //SystemClock.sleep(100);
@@ -349,7 +353,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
                 File outputFile = new File(FILES_DIR,
                         String.format("merged/frame-%02d.png", frameCount));
-                //mergeBitmap(X,Y, outputFile.toString());
+                mergeBitmap(X,Y, outputFile.toString());
                 //merged.compress(Bitmap.CompressFormat.PNG, 90, bos);
 
 
