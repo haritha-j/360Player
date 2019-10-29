@@ -69,6 +69,7 @@ import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 //20131122: minor tweaks to saveFrame() I/O
 //20131205: add alpha to EGLConfig (huge glReadPixels speedup); pre-allocate pixel buffers;
@@ -98,10 +99,10 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     private static final int X = 5;
     private static final int Y = 4;
     private static final int TILE_COUNT = X*Y;
-    private int[] FOCUS = {15,16,17,18};//these have to be these, because this is the region that loads on screen by default, and if the focus is changed too fast at the start, the app crashes
+    private int[] FOCUS = {15,16,17,18};
     private int[] FOCUSTEMP = {15,16,17,18};
     //private int FOCUS_LENGTH = FOCUS.length;
-    private static final int MAX_FRAMES =10;       // the number of frames to hold in the buffer
+    private static final int MAX_FRAMES =8;       // the number of frames to hold in the buffer
     private static final int MAX_CHUNKS = 50;
     private static final int WAIT_TIME = 20;
     boolean rendered = true;
@@ -264,7 +265,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
         if (FOCUSTEMP[0] !=FOCUS[0] || FOCUSTEMP[1] != FOCUS[1] || FOCUSTEMP[2] != FOCUS[2] || FOCUSTEMP[3] != FOCUS[3]){
             Log.d(TAG, "angles - focus changed ");
-            bmQueues.flushQueues();
+            //bmQueues.flushQueues();
             FOCUS[0] = FOCUSTEMP[0];
             FOCUS[1] = FOCUSTEMP[1];
             FOCUS[2] = FOCUSTEMP[2];
@@ -286,6 +287,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         int frameCount = 0;
         long completeStart = System.nanoTime();
         long startTime = System.nanoTime();
+        int[] focus = new int[FOCUS.length];
+        System.arraycopy(FOCUS, 0, focus, 0, FOCUS.length);
         while(true) {
             long renderStart = System.nanoTime();
 
@@ -302,7 +305,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
             //while ((frameCounts <= frameCount) || (frame2Count <= frameCount)) {
             //    SystemClock.sleep(20);
             //}
-            Log.d(TAG, "gyro - Frame available on BMP arrays");
+            Log.d(TAG, "focus - gyro - Frame available on BMP arrays");
             //BufferedOutputStream bos = null;
             //File outputFile = new File(FILES_DIR,
             //       String.format("pics/frame-%02d.png", frameCount));
@@ -325,6 +328,12 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 //create new blank bitmap
                 //Bitmap blank = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
                 long startGet = System.nanoTime();
+                if (frameCount %32 == 0){
+                    System.arraycopy(FOCUS, 0, focus, 0, FOCUS.length);
+                    //flush all other decoded frames at this point
+
+                }
+                Log.d(TAG, "focus - "+ focus[0]);
                 //SystemClock.sleep(100);
                 //select whether to load all tiles or only high quality tiles
                 int layer = frameCount%4;
@@ -332,8 +341,8 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                     frame = bmQueues.getFrame();
                 }
                 else{
-                    frame = bmQueues.getTiles(layer, frame);
-                    Log.d(TAG, "load - get frame layer "+ layer + " len "+frame.length);
+                    frame = bmQueues.getTiles(layer, frame, focus);
+                    Log.d(TAG, "focus - get frame layer "+ layer + " len "+frame.length);
                 }
                 //frame = bmQueues.getFrame();
                 long getTime = System.nanoTime() - startGet;
@@ -671,9 +680,11 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
         public void addFrame(Bitmap bmp, int tileID) {
             try {
-                Log.d(TAG, "before adding tile "+ tileID);
+                Log.d(TAG, "focus - before adding tile "+ tileID);
                 queue[tileID].put(bmp);
-                Log.d(TAG, "after adding tile "+ tileID);
+                //queue[tileID].offer(bmp, 100, TimeUnit.MILLISECONDS);
+
+                Log.d(TAG, "focus - after adding tile "+ tileID);
 
             } catch (InterruptedException e) {
                 e.printStackTrace();
@@ -695,12 +706,12 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         }
 
         //load high refresh rate tiles only
-        public Bitmap[] getTiles(int layer, Bitmap[] frame) {
+        public Bitmap[] getTiles(int layer, Bitmap[] frame, int[] focus) {
             for (int j=0; j < FOCUS.length; j++) {
                 try {
-                    Log.d(TAG, "gyro - queue - remaining space before " + queue[extraTiles*layer + FOCUS[j]].remainingCapacity()+ " taking from "+ (extraTiles*layer + FOCUS[j]));
-                    frame[FOCUS[j]] = queue[extraTiles*layer + FOCUS[j]].take();
-                    Log.d(TAG, "gyro - queue - remaining space after " + queue[extraTiles*layer + FOCUS[j]].remainingCapacity());
+                    Log.d(TAG, "focus - gyro - queue - remaining space before " + queue[extraTiles*layer + FOCUS[j]].remainingCapacity()+ " taking from "+ (extraTiles*layer + FOCUS[j]));
+                    frame[focus[j]] = queue[extraTiles*layer + focus[j]].take();
+                    Log.d(TAG, "focus - gyro - queue - remaining space after " + queue[extraTiles*layer + FOCUS[j]].remainingCapacity());
                 } catch (InterruptedException e) {
                     Log.d(TAG, "get focus frame failed");
                     e.printStackTrace();
@@ -980,7 +991,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                                 bmQueues.addFrame(bmp, frameID);
                             }
                             else {
-                                Log.d(TAG, " intermediate tile id "+ (frameID + layer * 20) + " layer "+layer);
+                                Log.d(TAG, "focus - intermediate tile id "+ (frameID + layer * 20) + " layer "+layer);
                                 bmQueues.addFrame(bmp, frameID + layer * 20);
                             }
                             frameSaveTime += System.nanoTime() - startWhen;
