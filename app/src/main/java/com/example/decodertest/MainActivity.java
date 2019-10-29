@@ -166,7 +166,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
         //frames = new Bitmap[TILE_COUNT][MAX_FRAMES];
         //frameCounts = new int[TILE_COUNT];
 
-        bmQueues = new BitmapQueues(TILE_COUNT, TILE_COUNT, MAX_FRAMES);
+        bmQueues = new BitmapQueues(TILE_COUNT, FOCUS.length, MAX_FRAMES);
         frame = new Bitmap[TILE_COUNT];
         //intermediateFrame = new Bitmap[FOCUS_LENGTH*3];
         //allocated = false;
@@ -330,8 +330,6 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 long startGet = System.nanoTime();
                 if (frameCount %32 == 0){
                     System.arraycopy(FOCUS, 0, focus, 0, FOCUS.length);
-                    //flush all other decoded frames at this point
-
                 }
                 Log.d(TAG, "focus - "+ focus[0]);
                 //SystemClock.sleep(100);
@@ -707,11 +705,12 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
         //load high refresh rate tiles only
         public Bitmap[] getTiles(int layer, Bitmap[] frame, int[] focus) {
-            for (int j=0; j < FOCUS.length; j++) {
+            for (int j=0; j < focus.length; j++) {
                 try {
-                    Log.d(TAG, "focus - gyro - queue - remaining space before " + queue[extraTiles*layer + FOCUS[j]].remainingCapacity()+ " taking from "+ (extraTiles*layer + FOCUS[j]));
-                    frame[focus[j]] = queue[extraTiles*layer + focus[j]].take();
-                    Log.d(TAG, "focus - gyro - queue - remaining space after " + queue[extraTiles*layer + FOCUS[j]].remainingCapacity());
+                    Log.d(TAG, "gyro - queue - remaining space before " + queue[extraTiles*layer + FOCUS[j]].remainingCapacity()+ " taking from "+ (tileCount + extraTiles*(layer-1) + j));
+                    frame[focus[j]] = queue[tileCount + extraTiles*(layer-1) + j].take();
+                    //Log.d(TAG, "gyro - current tile "+ focus[j]);
+                    Log.d(TAG, "gyro - queue - remaining space after " + queue[extraTiles*layer + FOCUS[j]].remainingCapacity());
                 } catch (InterruptedException e) {
                     Log.d(TAG, "get focus frame failed");
                     e.printStackTrace();
@@ -878,7 +877,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
         boolean outputDone = false;
         boolean inputDone = false;
-        Bitmap bmp = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_4444);
+        Bitmap bmp;// = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_4444);
         ByteBuffer mPixelBuf = ByteBuffer.allocateDirect(mWidth*mHeight*4);
         mPixelBuf.order(ByteOrder.LITTLE_ENDIAN);
 
@@ -991,9 +990,9 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                                 bmQueues.addFrame(bmp, frameID);
                             }
                             else {
-                                Log.d(TAG, "focus - intermediate tile id "+ (frameID + layer * 20) + " layer "+layer);
-                                bmQueues.addFrame(bmp, frameID + layer * 20);
-                            }
+                                Log.d(TAG, " intermediate tile id "+ (frameID + layer * 20) + " layer "+layer);
+                                bmQueues.addFrame(bmp, TILE_COUNT + focusID + ((layer-1) * FOCUS.length));
+                            }//tileCount + extraTiles*(layer-1) + j
                             frameSaveTime += System.nanoTime() - startWhen;
                             Long frameTime = System.nanoTime() - startWhen;
                             //Log.d(TAG, "queue - frame added to queue "+ decodeCount+ " in "+ frameTime +" draw time was "+ drawTime);
@@ -1023,6 +1022,7 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
                 }
             }
         }
+        Log.d(TAG, "gyro - number of frames "+ decodeCount);
         Log.d(TAG, "framesave time for tile "+ frameID + " is "+frameSaveTime + " saved "+decodeCount+ " frames.");
 
 
